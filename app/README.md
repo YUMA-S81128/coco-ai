@@ -1,16 +1,17 @@
-# app
+# Coco-Ai フロントエンド (Flutter)
 
-A new Flutter project.
+> Google Cloud Japan AI Hackathon vol.3 応募作品
 
-## Getting Started
+このディレクトリは、親子対話AI「Coco-Ai」のフロントエンドアプリケーションです。
+Flutter (Web) を使用して構築されています。
 
-This project is a starting point for a Flutter application.
+## 役割
 
-A few resources to get you started if this is your first Flutter project:
+このアプリケーションは、ユーザー（親子）が直接操作するインターフェースを提供します。
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+-   **UI/UX**: 子供向けのキャラクター（ココ、アイ）やイラストを表示し、楽しい対話体験を提供します。
+-   **音声入出力**: 子供の質問をマイクで受け付け、バックエンドから返ってきた解説を音声で再生します。
+-   **Firebase連携**:
+    -   **Authentication**: ユーザー認証を行います。
+    -   **Cloud Storage**: 録音した音声ファイルをアップロードし、バックエンドで生成された画像や音声ファイルを取得します。
+    -   **Firestore**: バックエンドとの処理状況や結果のパスをリアルタイムに同期します。
