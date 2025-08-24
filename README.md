@@ -21,10 +21,12 @@ Coco-Aiは、子供の尽きない好奇心に対し、2人のキャラクター
 
 ## 🛠️ 技術アーキテクチャ
 
-Flutter (Web)製のフロントエンドと、Cloud Run上で動作するPython製のバックエンド（ADK: Agents Development Kit）で構成されています。Firebaseを介して両者が連携し、Google Cloudの最新AI技術（Gemini, Imagen, Speech-to-Text/Text-to-Speech）を活用してリッチな対話体験をリアルタイムで提供します。
+Flutter (Web)製のフロントエンドと、Cloud Run上で動作するPython製のバックエンド（ADK: Agents Development Kit）で構成されています。
+
+ユーザーの音声アップロードは、Cloud Functions for Firebaseが発行する**署名付きURL**を利用して行われます。アップロードされたファイルは**Eventarc**を介してCloud Runのバックエンド処理をトリガーし、処理結果は**Firestore**を通じてフロントエンドにリアルタイムで通知される、イベント駆動型のアーキテクチャを採用しています。
 
 ## 📂 ディレクトリ構成
 
 *   `./app`: Flutterで構築されたフロントエンドアプリケーションです。詳細は `app/README.md` を参照してください。
 *   `./backend`: Cloud Run上で動作するPythonのバックエンド（AIエージェント）です。詳細は `backend/README.md` を参照してください。
-*   `./functions`: Firebaseのイベントをトリガーにバックエンドを呼び出すCloud Functionsです。詳細は `functions/README.md` を参照してください。
+*   `./functions`: フロントエンドからのリクエストに応じて、Cloud Storageへのアップロード用署名付きURLを発行するCloud Functions for Firebaseです。詳細は `functions/README.md` を参照してください。
