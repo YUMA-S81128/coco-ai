@@ -29,4 +29,4 @@ Flutter (Web)製のフロントエンドと、Cloud Run上で動作するPython�
 
 *   `./app`: Flutterで構築されたフロントエンドアプリケーションです。詳細は `app/README.md` を参照してください。
 *   `./backend`: Cloud Run上で動作するPythonのバックエンド（AIエージェント）です。詳細は `backend/README.md` を参照してください。
-*   `./functions`: フロントエンドからのリクエストに応じて、Cloud Storageへのアップロード用署名付きURLを発行するCloud Functions for Firebaseです。詳細は `functions/README.md` を参照してください。
+*   `./functions`: フロントエンドからのリクエストに応じて、Cloud Storageへのアップロード用署名付きURLを発行するPython製のCloud Functions for Firebaseです。詳細は `functions/README.md` を参照してください。
