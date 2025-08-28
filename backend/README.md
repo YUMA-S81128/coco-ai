@@ -53,3 +53,20 @@ uv venv
 # 依存パッケージをインストール (開発用ツールも含む)
 uv sync --all-extras
 ```
+
+### 3. デプロイ
+
+このバックエンドは、Cloud Run サービスとしてデプロイされます。
+
+1.  **gcloud CLI の認証**: Google Cloud にログインします。
+    ```bash
+    gcloud auth login
+    ```
+2.  **Cloud Run へのデプロイ**: `backend` ディレクトリから以下のコマンドを実行します。`[SERVICE_NAME]` は任意のサービス名に、`[REGION]` はデプロイするリージョン（例: `asia-northeast1`）に置き換えてください。
+    ```bash
+    gcloud run deploy [SERVICE_NAME] --source . --region [REGION] --allow-unauthenticated
+    ```
+
+```
+
+```
