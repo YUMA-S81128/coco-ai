@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Coco-Ai (dev)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "args": [
+        // プロジェクトルートにあるconfig/dev.jsonを読み込む
+        "--dart-define-from-file=../config/dev.json"
+      ]
+    }
+  ]
+}

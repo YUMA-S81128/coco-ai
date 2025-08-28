@@ -1,0 +1,27 @@
+{
+  // ===================================================================
+  // 全般設定
+  // ===================================================================
+  // ファイル保存時に自動でフォーマットを実行する
+  "editor.formatOnSave": true,
+  // デフォルトのフォーマッター（主にJSONやMarkdown用）
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // ===================================================================
+  // 言語ごとの設定
+  // ===================================================================
+  // Dart (Flutter) ファイル用の設定
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code"
+  },
+
+  // Python ファイル用の設定
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    // 保存時にRuffによる修正とimportの整理を自動実行
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  }
+}

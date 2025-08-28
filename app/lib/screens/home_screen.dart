@@ -94,7 +94,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withAlpha(26),
                   spreadRadius: 1,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
@@ -126,7 +126,6 @@ Widget _buildContent(BuildContext context, AppState appState) {
     case AppStatus.initial:
     case AppStatus.recording:
     case AppStatus.error:
-    default:
       // 初期状態やエラー時はシンプルなメッセージを表示
       return Text('マイクのボタンをおして\n「なんで？」ってきいてみてね！',
           style: textTheme.headlineSmall, textAlign: TextAlign.center);

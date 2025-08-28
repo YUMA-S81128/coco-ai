@@ -1,0 +1,12 @@
+[tool.ruff]
+# Blackと互換性のあるルールセット + よく使われるルールを有効化
+# E: pycodestyle errors
+# F: Pyflakes (未使用のimportなど)
+# W: pycodestyle warnings
+# I: isort (importの並び替え)
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.format]
+# Black互換のフォーマットを有効化
+quote-style = "double"

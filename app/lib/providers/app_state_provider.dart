@@ -50,10 +50,12 @@ class AppStateNotifier extends StateNotifier<AppState> {
       final audioBytes = response.bodyBytes;
 
       // 1. Cloud Functionsを呼び出して、署名付きURLとジョブIDを取得
-      // TODO: Cloud Functionsの関数名を実際のものに合わせる
       final functions = FirebaseFunctions.instanceFor(region: 'asia-northeast1');
-      final callable = functions.httpsCallable('generateUploadInfo');
-      final result = await callable.call<Map<String, dynamic>>();
+      final callable = functions.httpsCallable('generate_signed_url');
+      // バックエンドが要求する 'contentType' を引数で渡す
+      final result = await callable.call<Map<String, dynamic>>({
+        'contentType': 'audio/webm', // Webでの録音形式
+      });
       final uploadUrl = result.data['uploadUrl'] as String;
       final jobId = result.data['jobId'] as String;
 
@@ -74,7 +76,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
   Future<void> _uploadAudio(String url, Uint8List data) async {
     final response = await http.put(
       Uri.parse(url),
-      headers: {'Content-Type': 'audio/webm'}, // TODO: 録音形式に合わせて変更
+      headers: {'Content-Type': 'audio/webm'}, // callableに渡したcontentTypeと合わせる
       body: data,
     );
     if (response.statusCode != 200) {
@@ -96,7 +98,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
       final data = snapshot.data()!;
       final jobStatus = data['status'] as String;
 
-      if (jobStatus == 'completed') {
+      // バックエンドの実装に合わせてステータス名を修正する (例: 'success')
+      if (jobStatus == 'success') {
         state = state.copyWith(
           status: AppStatus.success,
           resultText: data['resultText'] as String?,
@@ -121,4 +124,3 @@ class AppStateNotifier extends StateNotifier<AppState> {
     super.dispose();
   }
 }
-
