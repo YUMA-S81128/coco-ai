@@ -1,31 +1,52 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:app/constants/firebase_constants.dart';
+import 'package:app/services/auth_service.dart';
 import 'package:app/models/app_state.dart';
+import 'package:app/models/job.dart';
+import 'package:app/services/storage_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
 
-/// アプリケーションの状態を管理するStateNotifierProvider
-final appStateProvider = StateNotifierProvider<AppStateNotifier, AppState>((ref) {
-  return AppStateNotifier();
+/// A provider for the Firebase Functions instance.
+final _functionsProvider = Provider(
+  (ref) => FirebaseFunctions.instanceFor(region: FirebaseConstants.region),
+);
+
+/// A provider for the Firestore instance.
+final _firestoreProvider = Provider((ref) => FirebaseFirestore.instance);
+
+/// A StateNotifierProvider that manages the application's state.
+final appStateProvider = StateNotifierProvider<AppStateNotifier, AppState>((
+  ref,
+) {
+  return AppStateNotifier(ref);
 });
 
 class AppStateNotifier extends StateNotifier<AppState> {
-  AppStateNotifier() : super(const AppState());
-
   final _audioRecorder = AudioRecorder();
   StreamSubscription? _jobSubscription;
+  final Ref _ref;
 
-  /// 録音を開始する
+  AppStateNotifier(this._ref) : super(const AppState());
+
+  /// Starts the audio recording.
   Future<void> startRecording() async {
-    // マイクのパーミッションを確認
     if (await _audioRecorder.hasPermission()) {
       state = state.copyWith(status: AppStatus.recording);
-      // TODO: Webでの録音形式を適切なもの（例: webm）に設定する必要がある
-      await _audioRecorder.start(const RecordConfig(), path: 'voice_record');
+      await _audioRecorder.start(
+        const RecordConfig(
+          // Specify the Opus codec used in the WebM container.
+          encoder: AudioEncoder.opus,
+          // Match the sample rate with the backend's Speech-to-Text configuration.
+          sampleRate: 48000,
+        ),
+        path: 'voice_record.webm',
+      );
     } else {
       state = state.copyWith(
         status: AppStatus.error,
@@ -34,8 +55,18 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
-  /// 録音を停止し、AI処理を開始する
+  /// Stops recording and starts the AI processing.
   Future<void> stopRecordingAndProcess() async {
+    // Get the current user ID from the auth service.
+    final userId = _ref.read(authServiceProvider).currentUserId;
+    if (userId == null) {
+      state = state.copyWith(
+        status: AppStatus.error,
+        errorMessage: '未ログインの状態では使用できません。',
+      );
+      return;
+    }
+
     try {
       state = state.copyWith(status: AppStatus.processing);
 
@@ -44,26 +75,34 @@ class AppStateNotifier extends StateNotifier<AppState> {
         throw Exception('録音データの保存に失敗しました。');
       }
 
-      // Webではファイルパスではなくメモリ上のデータとして扱う
-      // recordパッケージのWeb実装に依存
+      // On the web, `stop()` returns a blob URL. We need to fetch its content
+      // via an HTTP request to get the audio data as bytes.
       final response = await http.get(Uri.parse(audioPath));
       final audioBytes = response.bodyBytes;
 
-      // 1. Cloud Functionsを呼び出して、署名付きURLとジョブIDを取得
-      final functions = FirebaseFunctions.instanceFor(region: 'asia-northeast1');
-      final callable = functions.httpsCallable('generate_signed_url');
-      // バックエンドが要求する 'contentType' を引数で渡す
+      // 1. Call Cloud Functions to get a signed URL and job ID.
+      final functions = _ref.read(_functionsProvider);
+      final callable = functions.httpsCallable(
+        FirebaseConstants.generateSignedUrl,
+      );
+      // Pass the 'contentType' argument required by the backend.
       final result = await callable.call<Map<String, dynamic>>({
-        'contentType': 'audio/webm', // Webでの録音形式
+        FirebaseConstants.contentType: FirebaseConstants.audioContentType,
       });
-      final uploadUrl = result.data['uploadUrl'] as String;
+      // Key for the backend response.
+      final uploadUrl = result.data['signedUrl'] as String;
       final jobId = result.data['jobId'] as String;
 
-      // 2. 取得した署名付きURLに音声データをアップロード
+      // 2. Upload the audio data to the obtained signed URL.
       await _uploadAudio(uploadUrl, audioBytes);
 
-      // 3. Firestoreのジョブドキュメントを監視
+      // 3. Listen for updates on the job document in Firestore.
       _listenToJobUpdates(jobId);
+    } on FirebaseFunctionsException catch (e) {
+      state = state.copyWith(
+        status: AppStatus.error,
+        errorMessage: 'サーバーとの通信に失敗しました: ${e.message}',
+      );
     } catch (e) {
       state = state.copyWith(
         status: AppStatus.error,
@@ -72,11 +111,14 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
-  /// 署名付きURLを使用してCloud Storageにファイルをアップロードする
+  /// Uploads a file to Cloud Storage using a signed URL.
   Future<void> _uploadAudio(String url, Uint8List data) async {
     final response = await http.put(
       Uri.parse(url),
-      headers: {'Content-Type': 'audio/webm'}, // callableに渡したcontentTypeと合わせる
+      headers: {
+        'Content-Type': FirebaseConstants
+            .audioContentType, // Match the contentType passed to the callable.
+      },
       body: data,
     );
     if (response.statusCode != 200) {
@@ -84,37 +126,47 @@ class AppStateNotifier extends StateNotifier<AppState> {
     }
   }
 
-  /// Firestoreのジョブの更新を監視する
+  /// Listens for updates on a job in Firestore.
   void _listenToJobUpdates(String jobId) {
     _jobSubscription?.cancel();
-    // TODO: Firestoreのコレクション名とフィールド名を実際のものに合わせる
-    _jobSubscription = FirebaseFirestore.instance
-        .collection('jobs')
+    _jobSubscription = _ref
+        .read(_firestoreProvider)
+        .collection(FirebaseConstants.jobsCollection)
         .doc(jobId)
         .snapshots()
-        .listen((snapshot) {
-      if (!snapshot.exists) return;
+        .listen((snapshot) async {
+          if (!snapshot.exists) return;
 
-      final data = snapshot.data()!;
-      final jobStatus = data['status'] as String;
+          // Convert to a safe Job model.
+          final job = Job.fromFirestore(snapshot);
 
-      // バックエンドの実装に合わせてステータス名を修正する (例: 'success')
-      if (jobStatus == 'success') {
-        state = state.copyWith(
-          status: AppStatus.success,
-          resultText: data['resultText'] as String?,
-          imageUrl: data['imageUrl'] as String?,
-        );
-        _jobSubscription?.cancel();
-      } else if (jobStatus == 'error') {
-        state = state.copyWith(
-          status: AppStatus.error,
-          errorMessage: data['errorMessage'] as String?,
-        );
-        _jobSubscription?.cancel();
-      }
-      // 'processing'などの途中経過ステータスもここでハンドリング可能
-    });
+          switch (job.status) {
+            case JobStatus.completed:
+              // Get the download URL from the GCS path.
+              final imageUrl = job.imageGcsPath != null
+                  ? await _ref
+                        .read(storageServiceProvider)
+                        .getDownloadUrlFromGsPath(job.imageGcsPath!)
+                  : null;
+
+              state = state.copyWith(
+                status: AppStatus.success,
+                resultText: job.childExplanation,
+                imageUrl: imageUrl,
+              );
+              _jobSubscription?.cancel();
+              break;
+            case JobStatus.error:
+              state = state.copyWith(
+                status: AppStatus.error,
+                errorMessage: job.errorMessage ?? '不明なエラーが発生しました。',
+              );
+              _jobSubscription?.cancel();
+              break;
+            default:
+            // Do nothing for in-progress statuses.
+          }
+        });
   }
 
   @override

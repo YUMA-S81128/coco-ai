@@ -2,7 +2,7 @@ name: app
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -31,45 +31,46 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Firebase
+  # Firebase - Backend services
   firebase_core: ^4.0.0
   cloud_firestore: ^6.0.0
   cloud_functions: ^6.0.0
   firebase_storage: ^13.0.0
 
-  # State management
+  # State Management - Manages the application's state
   flutter_riverpod: ^2.5.1
 
-  # Font
+  # UI - Fonts and icons
+  cupertino_icons: ^1.0.8
   google_fonts: ^6.3.0
 
-  # Voice Recording (Web support)
+  # Features - Core functionalities of the app
   record: ^6.1.1
-
-  # HTTP requests (for uploading to signed URL)
   http: ^1.5.0
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  # Code Generation - Annotations
+  # Provides annotations for code generation tools like freezed and json_serializable.
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
+  # Linting - Enforces code style and best practices
   flutter_lints: ^6.0.0
+
+  # Code Generation - Tools
+  # Tools for generating boilerplate code from annotations.
+  build_runner: ^2.4.9
+  freezed: ^3.2.0
+  json_serializable: ^6.11.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

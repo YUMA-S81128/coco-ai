@@ -1,12 +1,19 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if false;
+    // ユーザーが自分のアップロードした音声ファイルを読み取ることを許可する。
+    // 書き込みはバックエンドからの署名付きURLによって処理される。
+    match /uploads/{userId}/{jobId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Allow users to read images from their own job folders.
+    // Write access is handled by signed URLs from the backend, so client write is not needed.
+    match /images/{userId}/{jobId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
   }
 }

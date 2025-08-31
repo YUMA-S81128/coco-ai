@@ -4,56 +4,40 @@ import 'package:app/providers/app_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// ホーム画面
+/// The main screen of the application.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
- 
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Riverpodからアプリケーションの状態を監視
+    // Watch the application state from Riverpod.
     final appState = ref.watch(appStateProvider);
     final appNotifier = ref.read(appStateProvider.notifier);
 
-    // エラーが発生した場合にSnackBarを表示
+    // Listen for state changes to show a SnackBar on error.
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.errorMessage!)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
       }
     });
 
     return Scaffold(
-      // 子供が安心するような、目に優しい薄い水色を背景色に設定
       backgroundColor: Colors.lightBlue[50],
       body: Stack(
         children: [
-          // --- キャラクター ---
-          // ココ（左下）
           Align(
             alignment: Alignment.bottomLeft,
-            child: Image.asset(
-              AppAssets.coco,
-              width: 150,
-              height: 150,
-            ),
+            child: Image.asset(AppAssets.coco, width: 150, height: 150),
           ),
-          // アイ（右下）
           Align(
             alignment: Alignment.bottomRight,
-            child: Image.asset(
-              AppAssets.ai,
-              width: 150,
-              height: 150,
-            ),
+            child: Image.asset(AppAssets.ai, width: 150, height: 150),
           ),
 
-          // --- 中央のコンテンツエリア ---
-          Center(
-            child: _buildContent(context, appState),
-          ),
+          Center(child: _buildContent(context, appState)),
 
-          // --- マイクボタン ---
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -67,7 +51,7 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// アプリの状態に応じて中央のコンテンツを構築する
+/// Builds the central content widget based on the current app state.
 Widget _buildContent(BuildContext context, AppState appState) {
   final textTheme = Theme.of(context).textTheme;
 
@@ -85,7 +69,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // AIが生成したイラストを表示
+          // Display the AI-generated illustration.
           Container(
             width: 300,
             height: 300,
@@ -112,7 +96,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
                 : null,
           ),
           const SizedBox(height: 24),
-          // AIによる解説文を表示
+          // Display the AI-generated explanation text.
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
@@ -126,23 +110,27 @@ Widget _buildContent(BuildContext context, AppState appState) {
     case AppStatus.initial:
     case AppStatus.recording:
     case AppStatus.error:
-      // 初期状態やエラー時はシンプルなメッセージを表示
-      return Text('マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-          style: textTheme.headlineSmall, textAlign: TextAlign.center);
+      // Show a simple message in the initial, recording, or error states.
+      return Text(
+        'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+        style: textTheme.headlineSmall,
+        textAlign: TextAlign.center,
+      );
   }
 }
 
-/// アプリの状態に応じてマイクボタンを構築する
+/// Builds the microphone button based on the current app state.
 Widget _buildMicButton(AppState appState, AppStateNotifier appNotifier) {
   final isRecording = appState.status == AppStatus.recording;
   final isProcessing = appState.status == AppStatus.processing;
 
   return IconButton(
-    onPressed: isProcessing
-        ? null // 処理中はボタンを無効化
+    onPressed:
+        isProcessing // Disable the button while processing.
+        ? null
         : () => isRecording
-            ? appNotifier.stopRecordingAndProcess()
-            : appNotifier.startRecording(),
+              ? appNotifier.stopRecordingAndProcess()
+              : appNotifier.startRecording(),
     icon: Icon(isRecording ? Icons.stop : Icons.mic, color: Colors.white),
     iconSize: 60,
     style: IconButton.styleFrom(

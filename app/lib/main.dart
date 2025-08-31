@@ -5,18 +5,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
-  // Flutterアプリの初期化を保証
+  // Ensure that Flutter bindings are initialized before any Flutter-specific code.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --dart-define-from-file で渡された環境変数からFirebaseの接続情報を取得
+  // Retrieve Firebase options from environment variables passed via --dart-define-from-file.
   const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  assert(apiKey.isNotEmpty, 'FIREBASE_API_KEY must be provided.');
   const appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  assert(appId.isNotEmpty, 'FIREBASE_APP_ID must be provided.');
+  const messagingSenderId = String.fromEnvironment(
+    'FIREBASE_MESSAGING_SENDER_ID',
+  );
+  assert(
+    messagingSenderId.isNotEmpty,
+    'FIREBASE_MESSAGING_SENDER_ID must be provided.',
+  );
   const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  assert(projectId.isNotEmpty, 'FIREBASE_PROJECT_ID must be provided.');
   const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+  assert(storageBucket.isNotEmpty, 'FIREBASE_STORAGE_BUCKET must be provided.');
   const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+  assert(authDomain.isNotEmpty, 'FIREBASE_AUTH_DOMAIN must be provided.');
 
-  // Firebaseの初期化
+  // Initialize Firebase with the retrieved options.
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: apiKey,
@@ -28,7 +39,7 @@ Future<void> main() async {
     ),
   );
 
-  // Riverpodをアプリ全体で使えるようにProviderScopeでラップ
+  // Wrap the app with ProviderScope to make Riverpod available throughout the app.
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -42,7 +53,6 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlue),
-        // アプリ全体のフォントを、丸みがあって親しみやすいフォントに設定
         textTheme: GoogleFonts.mPlusRounded1cTextTheme(
           Theme.of(context).textTheme,
         ),
