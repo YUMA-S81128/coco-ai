@@ -12,12 +12,12 @@ logger = get_logger(__name__)
 
 async def update_job_status(job_id: str, status: str, data: dict | None = None):
     """
-    Firestoreのジョブステータスと追加情報を更新する。
+    Update the job status and additional information in Firestore.
 
     Args:
-        job_id: 更新対象のジョブID
-        status: 新しいステータス
-        data: 追加で保存する情報
+        job_id: The ID of the job to update.
+        status: The new status string.
+        data: Optional dictionary of additional data to store.
     """
     logger.info(f"[{job_id}] Updating status to '{status}' with data: {data}")
     job_ref = db.collection(settings.firestore_collection).document(job_id)

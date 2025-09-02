@@ -6,8 +6,11 @@ from functools import lru_cache
 @lru_cache
 def setup_logging():
     """
-    ロギングの基本設定を構成します。
-    INFOレベル以上のログを標準出力に出力し、どのモジュールからのログか分かるようにフォーマットします。
+    Configures the basic logging settings for the application.
+
+    This function sets the logging level to INFO and formats log messages to
+    include a timestamp, log level, logger name, and the message. It should be
+    called once at application startup.
     """
     logging.basicConfig(
         level=logging.INFO,
@@ -17,7 +20,5 @@ def setup_logging():
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    指定された名前でロガーを取得します。
-    """
+    """Retrieves a logger instance with the specified name."""
     return logging.getLogger(name)

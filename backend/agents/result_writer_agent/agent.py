@@ -16,9 +16,14 @@ from services.logging_service import get_logger
 
 class ResultWriterAgent(BaseAgent):
     """
-    ワークフローの最終結果をFirestoreに書き込むエージェント。
-    - context.session.state に保持されているフラグやエラー情報を参照
-    - workflow_failed が True なら失敗として Firestore に記録
+    The final agent in the workflow, responsible for writing the results to Firestore.
+
+    This agent inspects the session state for a `workflow_failed` flag or
+    `parallel_errors` set by previous agents or callbacks.
+    - If an error is detected, it updates the Firestore job document with a 'failed' status.
+    - If successful, it gathers all the generated artifacts (transcription,
+      explanation, image path, audio path), structures them, and updates the
+      Firestore document with a 'completed' status and the final data.
     """
 
     def __init__(self):
@@ -33,7 +38,8 @@ class ResultWriterAgent(BaseAgent):
         if not job_id:
             raise ValueError("job_id not found in session state.")
 
-        # workflow_failed フラグまたは parallel_errors の有無で判定
+        # Check for failure based on the 'workflow_failed' flag or the presence
+        # of 'parallel_errors' from the ParallelAgent.
         if state.get("workflow_failed") or state.get("parallel_errors"):
             errors = state.get("parallel_errors") or {
                 "unknown": "One or more agents failed"
@@ -43,7 +49,7 @@ class ResultWriterAgent(BaseAgent):
             raise RuntimeError(f"Workflow failed: {errors}")
 
         try:
-            # 必須結果の取得とバリデーション
+            # Retrieve and validate the required results from the session state.
             transcription = TranscriptionResult.model_validate(state["transcription"])
             explanation_data = state["explanation_data"]
             illustration = IllustrationResult.model_validate(state["illustration"])
@@ -68,7 +74,7 @@ class ResultWriterAgent(BaseAgent):
                 f"[{job_id}] {final_message} Results written to Firestore."
             )
 
-            # 最終結果をイベントとして返す
+            # Return the final success message as an event.
             yield Event(
                 author=self.name, content=Content(parts=[Part(text=final_message)])
             )

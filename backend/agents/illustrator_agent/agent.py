@@ -16,7 +16,11 @@ from .config import GENERATE_CONFIG_PARAMS, IMAGEN_MODEL_ID
 
 class IllustratorAgent(BaseAgent):
     """
-    解説内容に合ったイラストを生成するエージェント。
+    An agent that generates illustrations matching the provided explanation.
+
+    This agent uses the Imagen model via the Vertex AI API to create an image
+    based on a prompt. The generated image is saved directly to a specified
+    Google Cloud Storage bucket.
     """
 
     def __init__(self):
@@ -32,7 +36,9 @@ class IllustratorAgent(BaseAgent):
         )
 
     async def _run_async_impl(self, context: InvocationContext):
-        """プロンプトからイラストを生成し、Cloud Storageに保存する"""
+        """
+        Generates an illustration from a prompt and saves it to Cloud Storage.
+        """
         job_id = context.session.state.get("job_id")
         explanation_data = context.session.state.get("explanation_data")
 
@@ -41,7 +47,9 @@ class IllustratorAgent(BaseAgent):
 
         explanation = ExplanationOutput.model_validate(explanation_data)
         prompt = explanation.illustration_prompt
-        self.logger.info(f"[{job_id}] イラスト生成を開始: {prompt}")
+        self.logger.info(
+            f"[{job_id}] Starting illustration generation with prompt: {prompt}"
+        )
 
         destination_blob_name = f"{job_id}-{uuid4()}.png"
         output_gcs_uri = (
@@ -60,7 +68,7 @@ class IllustratorAgent(BaseAgent):
             if not images:
                 raise ValueError("Image generation failed.")
 
-            self.logger.info(f"[{job_id}] イラストをGCSに保存: {output_gcs_uri}")
+            self.logger.info(f"[{job_id}] Illustration saved to GCS: {output_gcs_uri}")
 
             result = IllustrationResult(
                 job_id=job_id,
@@ -74,5 +82,5 @@ class IllustratorAgent(BaseAgent):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"[{job_id}] Imagen APIエラー: {e}", exc_info=True)
+            self.logger.error(f"[{job_id}] Imagen API error: {e}", exc_info=True)
             raise

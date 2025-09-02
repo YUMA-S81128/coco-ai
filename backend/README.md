@@ -1,72 +1,117 @@
-# Coco-Ai バックエンド (Python / Cloud Run / ADK)
+# Coco-Ai バックエンド
 
-> Google Cloud Japan AI Hackathon vol.3 応募作品
+このディレクトリには、Coco-Ai プロジェクトのバックエンドサービスのソースコードが含まれています。Python、FastAPI、および Google Agents Development Kit (ADK) を用いて構築されています。このサービスは Google Cloud Run 上でコンテナとして動作し、Cloud Storage へのファイルアップロードを Eventarc 経由でトリガーされます。
 
-このディレクトリは、親子対話 AI「Coco-Ai」のバックエンドアプリケーションです。
-Cloud Run 上で動作する Python で構築されており、中核的な AI 処理を担います。
+## ✨ アーキテクチャ
 
-## 役割
+バックエンドは、ADK を使用したエージェントベースのワークフローを実装しており、ユーザーが話した質問を処理し、子供向けの解説、イラスト、およびナレーション付きの音声応答を生成します。
 
-このバックエンドは、Cloud Storage へのファイルアップロードを**Eventarc**が検知することをトリガーとして起動され、複雑な AI 処理を実行する「専門家の作業場」です。
+### エージェントパイプライン
 
-- **AI エージェントシステム**: Agents Development Kit (ADK) を用いて、複数の AI エージェントが協調して動作するシステムを構築しています。
-- **マルチモーダル処理**: Google Cloud の最新 AI API を活用し、音声・テキスト・画像を統合したリッチな応答を生成します。
-  - **Speech-to-Text**: 子供の音声をテキストに変換します。
-  - **Gemini API**: テキスト化された質問の意図を理解し、子供向けの解説と親向けのヒントを生成します。
-  - **Imagen API**: 解説に合わせたイラストをリアルタイムで生成します。
-  - **Text-to-Speech**: 生成された解説文を自然な音声で読み上げます。
-- **Firebase 連携**: Eventarc から受け取ったイベント情報（ファイルメタデータに含まれるジョブ ID など）を元に、処理の進捗や結果を Firestore に書き込みます。生成した成果物（画像、音声ファイル）は Cloud Storage に保存します。
+中心的なロジックは、複数の専門エージェントを順次または並行して実行するパイプラインです。
 
-## AI エージェント構成
+1.  **`TranscriberAgent`**: Google Cloud Speech-to-Text API を使用して、Cloud Storage にあるユーザーの音声ファイルをテキストに書き起こします。
+2.  **`ExplainerAgent`**: 大規模言語モデル（Gemini）を利用し、書き起こされたテキストから以下の情報を構造化された JSON 形式で生成します。
+    - 子供向けの簡単な解説文
+    - テキスト読み上げ（TTS）用の SSML 形式のテキスト
+    - 親子間の会話を促すための親向けのヒント
+    - 画像生成用の詳細なプロンプト
+3.  **`ParallelAgent` (`IllustrateAndNarrate`)**: 処理時間を短縮するため、2 つのエージェントを並行して実行します。
+    - **`IllustratorAgent`**: `ExplainerAgent`からのプロンプトに基づいて Imagen を使用して画像を生成し、Cloud Storage に保存します。
+    - **`NarratorAgent`**: Google Cloud Text-to-Speech API を使用して SSML 形式の解説から音声を合成し、Cloud Storage に保存します。
+4.  **`ResultWriterAgent`**: パイプラインの最後のエージェントです。先行するすべてのエージェントからの結果（書き起こし、解説、画像 URL、音声 URL）を収集し、最終的なジョブデータを Firestore ドキュメントに書き込みます。また、ワークフロー中のエラーも検知し、ステータスを更新します。
 
-- **受付・通訳エージェント**: 子供のあいまいな発音も正確にテキスト化します。
-- **対話・解説エージェント**: 質問の意図を汲み取り、子供の年齢に合わせた回答、イラスト指示、そして親向けヒントを生成する司令塔です。
-- **イラストレーターエージェント**: 解説内容を補足する、わかりやすく可愛いイラストをその場で生成します。
-- **ナレーターエージェント**: 解説文を優しく温かみのある声で読み上げます。
+### リアルタイムなステータス更新
 
-## 開発フロー
+`callback.py` に定義されたコールバック関数 (`before_agent_callback`, `after_agent_callback`) を利用し、各エージェントの実行前後に Firestore のジョブステータスを更新します。これにより、フロントエンドは処理の進捗をリアルタイムで追跡できます。
 
-### 1. 前提条件
+### トリガーの仕組み
 
-- [Python](https://www.python.org/downloads/) (3.13 以上) がインストールされていること。
-- [uv](https://github.com/astral-sh/uv) (高速な Python パッケージインストーラ) がインストールされていること。
+- ワークフローは、特定の Cloud Storage バケットへのファイルアップロードを監視する **Eventarc** トリガーによって開始されます。
+- Eventarc は、Cloud Run サービスの`/invoke`エンドポイントに**CloudEvent**を送信します。
+- `main.py` の FastAPI アプリケーションがこのイベントを解析し、ファイルの GCS URI とジョブのメタデータを抽出してパイプラインを実行します。
 
-### 2. 依存関係のインストール
+## 🚀 開発ガイド
 
-このバックエンドは Python で記述されています。依存関係は `pyproject.toml` で管理され、仮想環境は `uv` を使って構築します。
+### 前提条件
+
+- Python (3.13)
+- uv (高速な Python パッケージインストーラ)
+- Google Cloud SDK (プロジェクトに対して認証済みであること)
+
+### セットアップ
+
+1.  **バックエンドディレクトリに移動:**
+
+    ```bash
+    cd backend
+    ```
+
+2.  **仮想環境の作成と有効化:**
+
+    ```bash
+    # 仮想環境を作成
+    uv venv
+
+    # 環境を有効化
+    # Windows (Git Bash): source .venv/Scripts/activate
+    # macOS / Linux:      source .venv/bin/activate
+    ```
+
+3.  **依存関係のインストール:**
+    プロジェクトの依存関係は `pyproject.toml` で定義されています。開発用の依存関係（linter など）も同時にインストールします。
+
+    ```bash
+    uv pip install -e ".[dev]"
+    ```
+
+4.  **環境変数の設定:**
+    `.env.example` をコピーして `.env` ファイルを作成し、お使いの Google Cloud 環境に合わせて値を設定してください。
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    | 変数名                    | 説明                                                        |
+    | :------------------------ | :---------------------------------------------------------- |
+    | `GOOGLE_CLOUD_PROJECT_ID` | あなたの Google Cloud プロジェクト ID。                     |
+    | `AUDIO_UPLOAD_BUCKET`     | フロントエンドから音声がアップロードされる GCS バケット名。 |
+    | `PROCESSED_AUDIO_BUCKET`  | 生成された解説音声（MP3）を保存する GCS バケット名。        |
+    | `GENERATED_IMAGE_BUCKET`  | 生成されたイラスト（PNG）を保存する GCS バケット名。        |
+
+### ローカルでの実行
+
+開発とテストのために、FastAPI サーバーをローカルで実行できます。`--reload` フラグにより、コード変更時にサーバーが自動的にリロードされます。
 
 ```bash
-# backend ディレクトリに移動
-cd backend
-
-# 仮想環境を作成
-uv venv
-
-# 仮想環境を有効化
-#   Windows (Git Bashの場合):
-#   source .venv/Scripts/activate
-#   Windows (コマンドプロンプトの場合):
-#   .\.venv\Scripts\activate
-#   macOS / Linux の場合:
-#   source .venv/bin/activate
-
-# 依存パッケージをインストール (開発用ツールも含む)
-uv sync --all-extras
+uvicorn main:app --reload
 ```
 
-### 3. デプロイ
+`/invoke` エンドポイントをテストするには、Eventarc の CloudEvent をシミュレートする必要があります。`curl` や Postman などのツールを使い、`StorageObjectData` モデルを模した有効な JSON ペイロードを持つ POST リクエストを送信します。
 
-このバックエンドは、Cloud Run サービスとしてデプロイされます。
+## デプロイ
 
-1.  **gcloud CLI の認証**: Google Cloud にログインします。
+このサービスは、コンテナとして Google Cloud Run にデプロイされるように設計されています。
+
+1.  **Docker コンテナのビルド:**
+
     ```bash
-    gcloud auth login
-    ```
-2.  **Cloud Run へのデプロイ**: `backend` ディレクトリから以下のコマンドを実行します。`[SERVICE_NAME]` は任意のサービス名に、`[REGION]` はデプロイするリージョン（例: `asia-northeast1`）に置き換えてください。
-    ```bash
-    gcloud run deploy [SERVICE_NAME] --source . --region [REGION] --allow-unauthenticated
+    gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/coco-ai-backend
     ```
 
-```
+    `YOUR_PROJECT_ID` を実際の Google Cloud プロジェクト ID に置き換えてください。
 
-```
+2.  **Cloud Run へのデプロイ:**
+    ```bash
+    gcloud run deploy coco-ai-backend \
+      --image gcr.io/YOUR_PROJECT_ID/coco-ai-backend \
+      --platform managed \
+      --region YOUR_REGION \
+      --allow-unauthenticated \
+      --env-file .env
+    ```
+    - `YOUR_PROJECT_ID` と `YOUR_REGION`　を実際の値に置き換えてください。.
+    - `--allow-unauthenticated` フラグは、Eventarc がサービスを呼び出すために必要です。さらなるセキュリティが必要な場合は、IAM でアクセスを制御する必要があります。
+    - デプロイする前に、`.env` ファイルが正しく設定されていることを確認してください。
+
+デプロイ後、指定された Cloud Storage バケットにファイルがアップロードされたときにこのサービスを呼び出すように Eventarc トリガーを設定します。

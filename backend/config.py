@@ -12,9 +12,11 @@ class SessionService(str, Enum):
 
 class Settings(BaseSettings):
     """
-    環境変数を管理する設定クラス。
-    .envファイルや環境変数から値を読み込む。
-    Pydanticの機能により、必須の環境変数が設定されていない場合は起動時にエラーとなります。
+    Configuration class to manage environment variables for the application.
+
+    It uses pydantic-settings to load configuration from a .env file and/or
+    environment variables. If required variables are not set, Pydantic will
+    raise a validation error on startup.
     """
 
     # Pydantic V2 style for model configuration.
@@ -51,7 +53,9 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """
-    設定オブジェクトをキャッシュして返すシングルトン関数
-    ValidationErrorはそのまま起動失敗とする
+    Singleton function to get and cache the application settings.
+
+    Using @lru_cache ensures that the Settings object is created only once,
+    improving performance by avoiding repeated file I/O and validation.
     """
     return Settings()  # type: ignore

@@ -14,7 +14,7 @@ from .config import OPERATION_TIMEOUT, RECOGNITION_CONFIG
 
 class TranscriberAgent(BaseAgent):
     """
-    Google Cloud Speech-to-Textを使用して音声ファイルをテキストに変換するエージェント。
+    An agent that transcribes audio files to text using Google Cloud Speech-to-Text.
     """
 
     def __init__(self):
@@ -24,7 +24,9 @@ class TranscriberAgent(BaseAgent):
         self.logger = get_logger(__name__)
 
     async def _run_async_impl(self, context: InvocationContext):
-        """エージェントの実行ロジック"""
+        """
+        The main execution logic for the agent.
+        """
         job_id = context.session.state.get("job_id")
         gcs_uri = context.session.state.get("gcs_uri")
 
@@ -33,7 +35,7 @@ class TranscriberAgent(BaseAgent):
                 "job_id and gcs_uri must be provided in the session state."
             )
 
-        self.logger.info(f"[{job_id}] 音声テキスト変換を開始: {gcs_uri}")
+        self.logger.info(f"[{job_id}] Starting audio transcription for: {gcs_uri}")
 
         try:
             request = cloud_speech.RecognizeRequest(
@@ -51,24 +53,24 @@ class TranscriberAgent(BaseAgent):
             )
 
             if not transcript:
-                self.logger.warning(
-                    f"[{job_id}] 音声からテキストを抽出できませんでした。"
-                )
+                self.logger.warning(f"[{job_id}] Could not extract text from audio.")
                 raise ValueError("Transcription resulted in empty text.")
 
-            self.logger.info(f"[{job_id}] 変換されたテキスト: {transcript}")
+            self.logger.info(f"[{job_id}] Transcribed text: {transcript}")
 
-            # ExplainerAgentのプロンプトテンプレート用
+            # Store the transcribed text for the ExplainerAgent's prompt template.
             context.session.state["transcribed_text"] = transcript
 
-            # ResultWriterAgentが最終結果を書き込むためのオブジェクト
+            # Store a structured result object for the final ResultWriterAgent.
             result = TranscriptionResult(
                 job_id=job_id, gcs_uri=gcs_uri, text=transcript
             )
             context.session.state["transcription"] = result.model_dump()
 
-            # 後続のエージェントは session.state とプロンプトテンプレート ({transcribed_text}) を
-            # 使ってテキストを受け取るため、会話履歴に影響を与えないよう、ここでは処理完了の通知のみを行う。
+            # Subsequent agents receive the text via session.state and the prompt
+            # template ({transcribed_text}). To avoid affecting the conversation
+            # history with the raw text, this agent only yields a simple
+            # completion notification.
             yield Event(
                 author=self.name,
                 content=Content(
@@ -81,6 +83,6 @@ class TranscriberAgent(BaseAgent):
             )
 
         except Exception as e:
-            error_message = f"音声テキスト変換中にエラーが発生しました: {e}"
+            error_message = f"An error occurred during audio transcription: {e}"
             self.logger.error(f"[{job_id}] {error_message}", exc_info=True)
             raise

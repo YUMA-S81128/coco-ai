@@ -4,19 +4,15 @@ from services.logging_service import get_logger
 
 logger = get_logger(__name__)
 
+# A mapping from agent names to human-readable status strings for Firestore.
 AGENT_STATUS_MAP = {
     "TranscriberAgent": "transcribing",
     "ExplainerAgent": "explaining",
+    # The ParallelAgent itself doesn't have a single status.
+    # We use the sub-agent names for more granular status updates.
     "IllustratorAgent": "illustrating",
     "NarratorAgent": "narrating",
     "ResultWriterAgent": "finishing",
-}
-
-PARALLEL_AGENTS = {
-    "IllustrateAndNarrate": {
-        "illustration": {"ok_key": "illustration", "err_key": "illustration_error"},
-        "narration": {"ok_key": "narration", "err_key": "narration_error"},
-    }
 }
 
 
@@ -27,26 +23,32 @@ async def before_agent_callback(
     callback_context: CallbackContext,
 ) -> None:
     """
-    Called before each agent runs.
-    - Logs entry.
-    - Updates Firestore progress (best-effort).
+    Called by the ADK runner before each agent in the sequence begins execution.
+
+    This function logs the entry into an agent and attempts to update the job's
+    status in Firestore to provide real-time progress feedback to the user.
+    The Firestore update is a best-effort operation and will not halt the
+    workflow if it fails.
     """
     agent_name = getattr(callback_context, "agent_name", None)
     state_obj = getattr(callback_context, "state", None)
 
-    # state を dict に変換
+    # Convert state object to a dictionary for easier access.
     state = state_obj.to_dict() if state_obj else {}
 
     job_id = state.get("job_id", "unknown")
-    logger.info(f"[{job_id or 'unknown'}] Entering agent: {agent_name}")
+    logger.info(f"[{job_id}] Entering agent: {agent_name}")
 
     if agent_name and job_id:
         status = AGENT_STATUS_MAP.get(agent_name)
         if status:
             try:
+                # Best-effort update to Firestore.
                 await update_job_status(job_id, status)
             except Exception as e:
-                logger.warning(f"[{job_id}] Failed to update status '{status}': {e}")
+                logger.warning(
+                    f"[{job_id}] Failed to update Firestore status to '{status}': {e}"
+                )
 
     return None
 
@@ -57,74 +59,69 @@ async def before_agent_callback(
 async def after_agent_callback(
     callback_context: CallbackContext,
 ) -> None:
+    """
+    Called by the ADK runner after each agent in the main sequence finishes.
+
+    This function logs the agent's exit and performs error checking.
+    - For ParallelAgent, it checks for aggregated errors from sub-agents.
+    - It sets a 'workflow_failed' flag in the state if any agent fails,
+      which is used by the ResultWriterAgent to determine the final job status.
+    """
     agent_name = getattr(callback_context, "agent_name", "unknown")
     state_obj = getattr(callback_context, "state", None)
-
-    # state を dict に変換
     state = state_obj.to_dict() if state_obj else {}
-
     job_id = state.get("job_id", "unknown")
-    logger.info(f"[{job_id}] after_agent_callback: agent {agent_name} exited")
+    logger.info(f"[{job_id}] Exited agent: {agent_name}")
 
-    # ParallelAgent ハンドリング
-    if agent_name in PARALLEL_AGENTS:
-        errors = {}
-        for label, keys in PARALLEL_AGENTS[agent_name].items():
-            ok_val = state.get(keys["ok_key"])
-            err_val = state.get(keys["err_key"])
-            if err_val:
-                logger.error(
-                    f"[{job_id}] Parallel sub-agent '{label}' failed: {err_val}"
-                )
-                errors[label] = str(err_val)
-            elif not ok_val:
-                logger.warning(
-                    f"[{job_id}] Parallel sub-agent '{label}' missing success key '{keys['ok_key']}'"
-                )
-                errors[label] = "missing_result"
-            else:
-                logger.info(f"[{job_id}] Parallel sub-agent '{label}' succeeded")
-
-        if errors:
-            if state_obj:
-                try:
-                    state_obj["parallel_errors"] = errors
-                    state_obj["workflow_failed"] = True
-                except Exception:
-                    logger.warning(
-                        f"[{job_id}] Could not write parallel_errors to callback state"
-                    )
-            logger.warning(
-                f"[{job_id}] ParallelAgent '{agent_name}' aggregated errors: {list(errors.keys())}"
-            )
-        else:
-            if state_obj:
-                state_obj["parallel_ok"] = True
-
-        return None
-
-    # 単一エージェント用ログ（ok / err キーがあれば）
-    SINGLE_AGENT_KEYS = {
-        "TranscriberAgent": ("transcription", "transcription_error"),
-        "ExplainerAgent": ("explanation_data", "explanation_error"),
-        "IllustratorAgent": ("illustration", "illustration_error"),
-        "NarratorAgent": ("narration", "narration_error"),
-        "ResultWriterAgent": (None, None),
-    }
-
-    if agent_name in SINGLE_AGENT_KEYS:
-        ok_key, err_key = SINGLE_AGENT_KEYS[agent_name]
-        if err_key and state.get(err_key):
+    # ADK's ParallelAgent automatically catches exceptions from its sub-agents
+    # and stores them in the 'parallel_errors' key in the session state.
+    if agent_name == "IllustrateAndNarrate":
+        parallel_errors = state.get("parallel_errors")
+        if parallel_errors:
             logger.error(
-                f"[{job_id}] Agent '{agent_name}' failed: {state.get(err_key)}"
+                f"[{job_id}] One or more parallel sub-agents failed: {parallel_errors}"
             )
             if state_obj:
+                # This flag will be checked by the final ResultWriterAgent.
                 state_obj["workflow_failed"] = True
         else:
-            logger.info(
-                f"[{job_id}] Agent '{agent_name}' completed (ok_key='{ok_key}')"
-            )
-        return None
+            # Additionally, verify that the expected outputs were actually produced.
+            missing_results = []
+            if "illustration" not in state:
+                missing_results.append("illustration")
+            if "narration" not in state:
+                missing_results.append("narration")
+
+            if missing_results:
+                error_msg = f"Parallel sub-agents completed but results are missing: {missing_results}"
+                logger.error(f"[{job_id}] {error_msg}")
+                if state_obj:
+                    state_obj["workflow_failed"] = True
+                    # Store this specific error information.
+                    if "parallel_errors" not in state_obj:
+                        state_obj["parallel_errors"] = {}
+                    state_obj["parallel_errors"]["missing_results"] = error_msg
+            else:
+                logger.info(
+                    f"[{job_id}] Parallel agent '{agent_name}' and all its sub-agents completed successfully."
+                )
+        return
+
+    # For sequential agents, ADK will typically raise an exception upon failure,
+    # which is caught by the main runner loop. This callback is usually only
+    # called on success. However, we can check for output keys as a safeguard.
+    # Note: LlmAgent might produce an '[output_key]_error' on graceful failure.
+    agent_error = state.get(f"{agent_name}_error")  # For LlmAgent
+    if agent_error:
+        logger.error(
+            f"[{job_id}] Agent '{agent_name}' failed gracefully with error: {agent_error}"
+        )
+        if state_obj:
+            state_obj["workflow_failed"] = True
+    else:
+        logger.info(f"[{job_id}] Agent '{agent_name}' completed.")
+
+    return None
 
     # --- Fallback ---
     logger.info(

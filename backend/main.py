@@ -78,7 +78,7 @@ def build_root_agent() -> SequentialAgent:
 # ---------------------------
 @app.post("/invoke")
 async def invoke_pipeline(request: Request):
-    # 1. リクエストの検証とデータ抽出
+    # 1. Validate the incoming request and extract data.
     try:
         headers = request.headers
         body = await request.body()
@@ -86,7 +86,7 @@ async def invoke_pipeline(request: Request):
         if not event.data:
             raise ValueError("CloudEvent data is empty.")
 
-        # Pydanticモデルでペイロードを検証・パース
+        # Validate and parse the payload using the Pydantic model.
         storage_data = StorageObjectData.model_validate(event.data)
 
         job_id = storage_data.metadata.jobId
@@ -115,7 +115,7 @@ async def invoke_pipeline(request: Request):
             app_name=APP_NAME, user_id=user_id, session_id=job_id
         )
         if not session:
-            # 新規の場合は初期stateを注入
+            # If it's a new session, inject the initial state.
             session = await session_service.create_session(
                 app_name=APP_NAME,
                 user_id=user_id,
@@ -130,7 +130,7 @@ async def invoke_pipeline(request: Request):
 
         user_content = Content(parts=[Part(text=gcs_uri)])
 
-        # エージェントの実行
+        # Run the agent pipeline.
         async for event in runner.run_async(
             user_id=user_id, session_id=job_id, new_message=user_content
         ):

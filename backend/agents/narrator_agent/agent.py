@@ -16,7 +16,11 @@ from .config import AUDIO_CONFIG, OPERATION_TIMEOUT, VOICE_SELECTION_PARAMS
 
 class NarratorAgent(BaseAgent):
     """
-    解説文を音声に合成するエージェント。
+    An agent that synthesizes speech from the explanation text.
+
+    This agent uses the Google Cloud Text-to-Speech API to convert an SSML
+    formatted string into an audio file (MP3) and uploads it to a
+    Google Cloud Storage bucket.
     """
 
     def __init__(self):
@@ -26,7 +30,9 @@ class NarratorAgent(BaseAgent):
         self.logger = get_logger(__name__)
 
     async def _run_async_impl(self, context: InvocationContext):
-        """解説文から音声を生成し、Cloud Storageに保存する"""
+        """
+        Generates audio from an SSML text and saves it to Cloud Storage.
+        """
         job_id = context.session.state.get("job_id")
         explanation_data = context.session.state.get("explanation_data")
 
@@ -36,7 +42,7 @@ class NarratorAgent(BaseAgent):
         explanation = ExplanationOutput.model_validate(explanation_data)
         ssml_text = explanation.child_explanation_ssml
 
-        self.logger.info(f"[{job_id}] 音声合成を開始 (SSML): {ssml_text}")
+        self.logger.info(f"[{job_id}] Starting speech synthesis (SSML): {ssml_text}")
 
         try:
             synthesis_input = SynthesisInput(ssml=ssml_text)
@@ -56,7 +62,7 @@ class NarratorAgent(BaseAgent):
                 content_type="audio/mpeg",
             )
 
-            self.logger.info(f"[{job_id}] 音声生成完了: {gcs_path}")
+            self.logger.info(f"[{job_id}] Speech synthesis completed: {gcs_path}")
             result = NarrationResult(job_id=job_id, final_audio_gcs_path=gcs_path)
             context.session.state["narration"] = result.model_dump()
 
@@ -67,6 +73,6 @@ class NarratorAgent(BaseAgent):
 
         except Exception as e:
             self.logger.error(
-                f"[{job_id}] Text-to-Speech APIエラー: {e}", exc_info=True
+                f"[{job_id}] Text-to-Speech API error: {e}", exc_info=True
             )
             raise
