@@ -1,5 +1,9 @@
 import 'package:app/screens/home_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,6 +42,21 @@ Future<void> main() async {
       authDomain: authDomain,
     ),
   );
+
+  // In debug mode, connect to the local Firebase Emulator Suite.
+  if (kDebugMode) {
+    try {
+      const host = 'localhost';
+      FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+      FirebaseStorage.instance.useStorageEmulator(host, 9199);
+      FirebaseFunctions.instanceFor(
+        region: 'asia-northeast1',
+      ).useFunctionsEmulator(host, 5001);
+    } catch (e) {
+      // ignore: avoid_print
+      print(e);
+    }
+  }
 
   // Wrap the app with ProviderScope to make Riverpod available throughout the app.
   runApp(const ProviderScope(child: MyApp()));

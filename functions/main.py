@@ -24,7 +24,7 @@ def generate_signed_url(req: https_fn.CallableRequest) -> https_fn.Response:
     この関数はクライアントアプリから呼び出し可能で、ユーザー認証が必須です。
 
     Args:
-        req.data['contentType']: アップロードするファイルのContent-Type (例: 'audio/webm')
+        req.data['contentType']: アップロードファイルのContent-Type (例: 'audio/webm')
 
     Returns:
         jobIdとsignedUrlを含む辞書。

@@ -23,7 +23,7 @@
 ```json
 {
   "jobId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "uploadUrl": "https://storage.googleapis.com/..."
+  "signedUrl": "https://storage.googleapis.com/..."
 }
 ```
 
@@ -68,11 +68,15 @@ uv pip install -r requirements.txt
 
 ### 3. ローカルでの動作確認
 
-Firebase Emulator Suite を使うことで、この Function をローカルでテストできます。プロジェクトのルートディレクトリで以下のコマンドを実行してください。フロントエンドアプリからの呼び出しに応じて、この Function がローカルで実行されます。
+Firebase Emulator Suite を使うことで、この Function をローカルでテストできます。プロジェクトのルートディレクトリで以下のコマンドを実行してください。
 
 ```bash
 firebase emulators:start
 ```
+
+エミュレータを起動後、`app`ディレクトリの`README.md`に従って Flutter アプリを起動すると、アプリからのリクエストに応じてこの Function がローカルで実行されます。
+
+> **Note:** 起動したエミュレータを停止するには、エミュレータが実行されているターミナルで `Ctrl + C` を押します。
 
 ### 4. デプロイ
 
