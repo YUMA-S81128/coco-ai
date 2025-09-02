@@ -40,6 +40,19 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
 2.  **Firebase 接続情報の設定**:
     Firebase コンソールから Web アプリ用の接続情報を取得し、プロジェクトルートに `config/dev.json` ファイルを作成して貼り付けます。この手順はフロントエンドの動作に必須です。詳細は `app/README.md` を参照してください。
 
+    **`config/dev.json` の例:**
+
+    ```json
+    {
+      "FIREBASE_API_KEY": "AIzaSy...",
+      "FIREBASE_AUTH_DOMAIN": "your-project-id.firebaseapp.com",
+      "FIREBASE_PROJECT_ID": "your-project-id",
+      "FIREBASE_STORAGE_BUCKET": "your-project-id.appspot.com",
+      "FIREBASE_MESSAGING_SENDER_ID": "1234567890",
+      "FIREBASE_APP_ID": "1:1234567890:web:abcdef1234567890"
+    }
+    ```
+
 3.  **各サービスのセットアップ**:
     `app`, `backend`, `functions` の各ディレクトリに移動し、それぞれの `README.md` に記載されている手順に従って、依存関係のインストールと仮想環境の構築を行ってください。
 

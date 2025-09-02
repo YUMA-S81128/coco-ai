@@ -23,5 +23,9 @@
       "source.fixAll": "explicit",
       "source.organizeImports": "explicit"
     }
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.pythonProjects": [],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["./backend/", "./functions/"]
 }
