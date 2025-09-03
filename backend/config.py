@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Pydantic V2 style for model configuration.
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="../.env",  # Look for .env in the project root
         env_file_encoding="utf-8",
         case_sensitive=False,
         alias_generator=(lambda x: x.upper()),

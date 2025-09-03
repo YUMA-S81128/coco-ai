@@ -77,8 +77,8 @@ class JobResultResponse(BaseModel):
 class CloudEventMetadata(BaseModel):
     """The 'metadata' field within the CloudEvent data payload."""
 
-    jobId: str
-    userId: str
+    job_id: str
+    user_id: str
 
 
 class StorageObjectData(BaseModel):

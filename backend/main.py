@@ -86,11 +86,12 @@ async def invoke_pipeline(request: Request):
         if not event.data:
             raise ValueError("CloudEvent data is empty.")
 
-        # Validate and parse the payload using the Pydantic model.
+        # Validate and parse the payload using the Pydantic model
         storage_data = StorageObjectData.model_validate(event.data)
 
-        job_id = storage_data.metadata.jobId
-        user_id = storage_data.metadata.userId
+        # ✅ jobid / userid に統一
+        job_id = storage_data.metadata.job_id
+        user_id = storage_data.metadata.user_id
         bucket = storage_data.bucket
         name = storage_data.name
 

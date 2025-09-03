@@ -86,6 +86,18 @@ firebase deploy --only functions
 
 ## ⚙️ 設定
 
-この Function を正しく動作させるためには、環境変数の設定が必要です。
+この Function は `pydantic-settings` を利用して、プロジェクトのルートディレクトリにある `.env` ファイルから環境変数を読み込みます。
 
-- `AUDIO_UPLOAD_BUCKET`: フロントエンドからアップロードされる音声ファイルを保存する Cloud Storage のバケット名。
+1.  **プロジェクトのルートディレクトリ (`coco-ai/`)** に移動し、`.env.example` ファイルをコピーして `.env` ファイルを作成します。
+    ```bash
+    # In the project root directory (coco-ai/)
+    cp .env.example .env
+    ```
+2.  作成した `.env` ファイルを編集し、お使いの環境に合わせて値を設定します。
+    - `AUDIO_UPLOAD_BUCKET`: フロントエンドからアップロードされる音声ファイルを保存する Cloud Storage のバケット名。
+
+### デプロイ時の環境変数
+
+Firebase Functions にデプロイする際は、`.env` ファイルの内容をランタイムの環境変数として設定する必要があります。`firebase deploy` コマンドに `--set-env-vars` フラグを追加するか、Google Cloud Secret Manager を利用して設定してください。
+
+**例:** `firebase deploy --only functions --set-env-vars AUDIO_UPLOAD_BUCKET=your-bucket-name`

@@ -93,8 +93,12 @@ class AppStateNotifier extends StateNotifier<AppState> {
       final uploadUrl = result.data['signedUrl'] as String;
       final jobId = result.data['jobId'] as String;
 
+      final requiredHeaders = Map<String, String>.from(
+        result.data['requiredHeaders'] as Map,
+      );
+
       // 2. Upload the audio data to the obtained signed URL.
-      await _uploadAudio(uploadUrl, audioBytes, jobId, userId);
+      await _uploadAudio(uploadUrl, audioBytes, requiredHeaders);
 
       // 3. Listen for updates on the job document in Firestore.
       _listenToJobUpdates(jobId);
@@ -115,16 +119,11 @@ class AppStateNotifier extends StateNotifier<AppState> {
   Future<void> _uploadAudio(
     String url,
     Uint8List data,
-    String jobId,
-    String userId,
+    Map<String, String> headers,
   ) async {
     final response = await http.put(
       Uri.parse(url),
-      headers: {
-        'Content-Type': FirebaseConstants.audioContentType,
-        'x-goog-meta-job-id': jobId,
-        'x-goog-meta-user-id': userId,
-      },
+      headers: headers,
       body: data,
     );
     if (response.statusCode != 200) {

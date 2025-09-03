@@ -70,10 +70,12 @@
     uv pip install --no-deps -e .
     ```
 
-4.  **環境変数の設定:**
-    `.env.example` をコピーして `.env` ファイルを作成し、お使いの Google Cloud 環境に合わせて値を設定してください。
+4.  **環境変数の設定 (プロジェクトルート):**
+    サーバーサイドの環境変数は、プロジェクトのルートディレクトリにある単一の `.env` ファイルで管理します。
+    まず、**プロジェクトのルートディレクトリ (`coco-ai/`)** に移動し、`.env.example` をコピーして `.env` ファイルを作成してください。
 
     ```bash
+    # In the project root directory (coco-ai/)
     cp .env.example .env
     ```
 
