@@ -114,11 +114,10 @@ uvicorn main:app --reload
       --image gcr.io/YOUR_PROJECT_ID/coco-ai-backend \
       --platform managed \
       --region YOUR_REGION \
-      --allow-unauthenticated \
       --env-file .env
     ```
     - `YOUR_PROJECT_ID` と `YOUR_REGION`　を実際の値に置き換えてください。.
-    - `--allow-unauthenticated` フラグは、Eventarc がサービスを呼び出すために必要です。さらなるセキュリティが必要な場合は、IAM でアクセスを制御する必要があります。
+    - **セキュリティに関する注意**: 上記のコマンド例には含まれていませんが、本番環境では `--allow-unauthenticated` フラグを使用せず、認証を有効にすることを強く推奨します。Eventarc トリガーに Cloud Run サービスを呼び出す権限 (`roles/run.invoker`) を持つサービスアカウントを関連付けることで、セキュアな呼び出しが可能です。
     - デプロイする前に、`.env` ファイルが正しく設定されていることを確認してください。
 
 デプロイ後、指定された Cloud Storage バケットにファイルがアップロードされたときにこのサービスを呼び出すように Eventarc トリガーを設定します。

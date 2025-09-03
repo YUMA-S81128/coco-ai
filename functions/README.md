@@ -43,7 +43,7 @@
 
 ### 1. 前提条件
 
-- [Python](https://www.python.org/downloads/) (3.12 以上) がインストールされていること。
+- [Python](https://www.python.org/downloads/) (3.13) がインストールされていること。
 - [uv](https://github.com/astral-sh/uv) (高速な Python パッケージインストーラ) がインストールされていること。
 - [Firebase CLI](https://firebase.google.com/docs/cli) がインストール・設定されていること。
 

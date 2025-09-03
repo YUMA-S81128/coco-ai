@@ -159,9 +159,5 @@ backend/*.egg-info/
 # Other
 functions/*.local
 
-# Firebase configuration files containing secrets
-app/lib/firebase_options.dart
-app/android/app/google-services.json
-
 # Local config files
 config/dev.json
