@@ -6,6 +6,7 @@ from google.adk.events import Event
 from google.genai.types import Content, Part
 from models.agent_models import (
     ExplanationResult,
+    FinalJobData,
     IllustrationResult,
     NarrationResult,
     TranscriptionResult,
@@ -63,15 +64,15 @@ class ResultWriterAgent(BaseAgent):
                 **explanation_data,
             )
 
-            final_data = {
-                "transcribedText": transcription.text,
-                "childExplanation": explanation.child_explanation,
-                "parentHint": explanation.parent_hint,
-                "illustrationPrompt": explanation.illustration_prompt,
-                "imageGcsPath": illustration.image_gcs_path,
-                "finalAudioGcsPath": narration.final_audio_gcs_path,
-            }
-            await update_job_status(job_id, "completed", final_data)
+            final_data_model = FinalJobData(
+                transcribedText=transcription.text,
+                childExplanation=explanation.child_explanation,
+                parentHint=explanation.parent_hint,
+                illustrationPrompt=explanation.illustration_prompt,
+                imageGcsPath=illustration.image_gcs_path,
+                finalAudioGcsPath=narration.final_audio_gcs_path,
+            )
+            await update_job_status(job_id, "completed", final_data_model.model_dump())
 
             final_message = f"Workflow for job {job_id} completed successfully."
             self.logger.info(

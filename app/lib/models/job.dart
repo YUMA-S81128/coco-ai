@@ -11,7 +11,7 @@ enum JobStatus {
   explaining,
   illustrating,
   narrating,
-  processing, // Used by the illustrator_agent
+  finishing,
   completed,
   error,
   unknown, // For unknown statuses

@@ -52,6 +52,17 @@ class NarrationResult(BaseModel):
     )
 
 
+class FinalJobData(BaseModel):
+    """The final data structure to be written to Firestore upon job completion."""
+
+    transcribedText: str
+    childExplanation: str
+    parentHint: str
+    illustrationPrompt: str
+    imageGcsPath: str
+    finalAudioGcsPath: str
+
+
 class CloudEventMetadata(BaseModel):
     """The 'metadata' field within the CloudEvent data payload."""
 

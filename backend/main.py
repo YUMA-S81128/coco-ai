@@ -127,11 +127,8 @@ def build_root_agent() -> SequentialAgent:
 @app.post("/invoke")
 async def invoke_pipeline(request: Request):
     # Parse and validate the incoming CloudEvent payload.
-    try:
-        event_data = await _parse_cloudevent_payload(request)
-    except Exception as e:
-        # Re-raise the HTTPException from the helper function
-        raise e
+    # HTTPException from the helper will be propagated automatically by FastAPI.
+    event_data = await _parse_cloudevent_payload(request)
 
     job_id = event_data["job_id"]
     user_id = event_data["user_id"]

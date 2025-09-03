@@ -40,7 +40,7 @@ const _$JobStatusEnumMap = {
   JobStatus.explaining: 'explaining',
   JobStatus.illustrating: 'illustrating',
   JobStatus.narrating: 'narrating',
-  JobStatus.processing: 'processing',
+  JobStatus.finishing: 'finishing',
   JobStatus.completed: 'completed',
   JobStatus.error: 'error',
   JobStatus.unknown: 'unknown',

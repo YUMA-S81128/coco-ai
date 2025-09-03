@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:app/constants/firebase_constants.dart';
 import 'package:app/services/auth_service.dart';
+import 'package:app/models/signed_url_response.dart';
 import 'package:app/models/app_state.dart';
 import 'package:app/models/job.dart';
 import 'package:app/services/storage_service.dart';
@@ -133,20 +134,17 @@ class AppStateNotifier extends StateNotifier<AppState> {
       FirebaseConstants.contentType: FirebaseConstants.audioContentType,
     });
 
-    final data = result.data;
-    final uploadUrl = data['signedUrl'] as String?;
-    final jobId = data['jobId'] as String?;
-    final requiredHeaders = data['requiredHeaders'] as Map?;
-
-    if (uploadUrl == null || jobId == null || requiredHeaders == null) {
-      throw Exception('サーバーからのレスポンス形式が正しくありません。');
+    try {
+      final response = SignedUrlResponse.fromJson(result.data);
+      return {
+        'uploadUrl': response.signedUrl,
+        'jobId': response.jobId,
+        'requiredHeaders': response.requiredHeaders,
+      };
+    } catch (e) {
+      // JSONのパースやモデルの検証に失敗した場合
+      throw Exception('サーバーからのレスポンス形式が正しくありません: $e');
     }
-
-    return {
-      'uploadUrl': uploadUrl,
-      'jobId': jobId,
-      'requiredHeaders': Map<String, String>.from(requiredHeaders),
-    };
   }
 
   /// Handles specific errors from Firebase Functions and updates the state
