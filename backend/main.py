@@ -43,6 +43,54 @@ session_service = create_session_service()
 
 
 # ---------------------------
+# Helper Functions
+# ---------------------------
+async def _parse_cloudevent_payload(request: Request) -> dict:
+    """
+    Parses and validates the incoming CloudEvent payload from a FastAPI request.
+    Extracts job_id, user_id, bucket, and object name.
+    Performs a security check to ensure the event originates from the expected bucket.
+    """
+    try:
+        headers = request.headers
+        body = await request.body()
+        event = from_http(headers, body)
+        if not event.data:
+            raise ValueError("CloudEvent data is empty.")
+
+        # Validate and parse the payload using the Pydantic model
+        storage_data = StorageObjectData.model_validate(event.data)
+
+        # Extract data from the event payload
+        job_id = storage_data.metadata.job_id
+        user_id = storage_data.metadata.user_id
+        bucket = storage_data.bucket
+        name = storage_data.name
+
+        # Security check: Ensure the event is from the expected bucket.
+        if bucket != settings.audio_upload_bucket:
+            logger.error(
+                f"[{job_id}] Invalid bucket in event: {bucket}. Expected: {settings.audio_upload_bucket}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Event from unexpected source bucket.",
+            )
+        return {"job_id": job_id, "user_id": user_id, "bucket": bucket, "name": name}
+    except ValidationError as e:
+        logger.error(f"Invalid CloudEvent payload: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payload: {e}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to parse CloudEvent: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not parse CloudEvent.",
+        )
+
+
+# ---------------------------
 # Build Root Agent
 # ---------------------------
 def build_root_agent() -> SequentialAgent:
@@ -78,34 +126,17 @@ def build_root_agent() -> SequentialAgent:
 # ---------------------------
 @app.post("/invoke")
 async def invoke_pipeline(request: Request):
-    # 1. Validate the incoming request and extract data.
+    # 1. Parse and validate the incoming CloudEvent payload.
     try:
-        headers = request.headers
-        body = await request.body()
-        event = from_http(headers, body)
-        if not event.data:
-            raise ValueError("CloudEvent data is empty.")
-
-        # Validate and parse the payload using the Pydantic model
-        storage_data = StorageObjectData.model_validate(event.data)
-
-        # ✅ jobid / userid に統一
-        job_id = storage_data.metadata.job_id
-        user_id = storage_data.metadata.user_id
-        bucket = storage_data.bucket
-        name = storage_data.name
-
-    except ValidationError as e:
-        logger.error(f"Invalid CloudEvent payload: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payload: {e}"
-        )
+        event_data = await _parse_cloudevent_payload(request)
     except Exception as e:
-        logger.error(f"Failed to parse CloudEvent: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not parse CloudEvent.",
-        )
+        # Re-raise the HTTPException from the helper function
+        raise e
+
+    job_id = event_data["job_id"]
+    user_id = event_data["user_id"]
+    bucket = event_data["bucket"]
+    name = event_data["name"]
 
     gcs_uri = f"gs://{bucket}/{name}"
     logger.info(f"[{job_id}] Received CloudEvent for {gcs_uri}")

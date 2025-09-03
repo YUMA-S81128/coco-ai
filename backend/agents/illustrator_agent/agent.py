@@ -1,12 +1,12 @@
 from uuid import uuid4
 
+from agents.base_processing_agent import BaseProcessingAgent
 from google import genai
-from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types
 from google.genai.types import Content, Part
-from models.agent_models import ExplanationOutput, IllustrationResult
+from models.agent_models import IllustrationResult
 from services.logging_service import get_logger
 
 from config import get_settings
@@ -14,7 +14,7 @@ from config import get_settings
 from .config import GENERATE_CONFIG_PARAMS, IMAGEN_MODEL_ID
 
 
-class IllustratorAgent(BaseAgent):
+class IllustratorAgent(BaseProcessingAgent):
     """
     An agent that generates illustrations matching the provided explanation.
 
@@ -39,13 +39,7 @@ class IllustratorAgent(BaseAgent):
         """
         Generates an illustration from a prompt and saves it to Cloud Storage.
         """
-        job_id = context.session.state.get("job_id")
-        explanation_data = context.session.state.get("explanation_data")
-
-        if not job_id or not explanation_data:
-            raise ValueError("job_id and explanation_data must be in session state.")
-
-        explanation = ExplanationOutput.model_validate(explanation_data)
+        job_id, explanation = self._get_common_data(context)
         prompt = explanation.illustration_prompt
         self.logger.info(
             f"[{job_id}] Starting illustration generation with prompt: {prompt}"

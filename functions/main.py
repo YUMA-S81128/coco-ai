@@ -91,22 +91,26 @@ def generate_signed_url(
     job_uuid = str(uuid.uuid4())
     job_id = f"job-{job_uuid}"
 
-    # Build object path. Keep file extension minimal and infer from content type
-    # when possible to make later processing easier.
+    # Build object path. We use a simple map to ensure consistent file
+    # extensions, as mimetypes.guess_extension can be unreliable for
+    # some types like 'audio/webm'.
     ext_map = {
         "audio/webm": ".webm",
         "audio/mpeg": ".mp3",
     }
     ext = ext_map.get(content_type, "")
 
-    object_name = f"uploads/{user_id}/{job_id}/audio{ext}"
+    # Use a more descriptive name to distinguish from generated audio.
+    object_name = f"uploads/{user_id}/{job_id}/source_audio{ext}"
 
     bucket = _storage_client.bucket(AUDIO_UPLOAD_BUCKET_NAME)
     blob = bucket.blob(object_name)
 
-    # Require the client to include custom metadata on upload. These headers must
-    # be provided by the uploader when performing the PUT; they will be stored
-    # as object metadata (x-goog-meta-*).
+    # Require the client to include custom metadata on upload.
+    # These headers, prefixed with 'x-goog-meta-', are stored as object
+    # metadata. Cloud Storage automatically makes them available in
+    # CloudEvents (e.g., 'x-goog-meta-job_id' becomes 'job_id' in the
+    # event payload's metadata field).
     required_metadata_headers = {
         "x-goog-meta-job_id": job_id,
         "x-goog-meta-user_id": user_id,

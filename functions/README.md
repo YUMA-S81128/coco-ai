@@ -20,8 +20,14 @@
 
 ```json
 {
-  "jobId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "signedUrl": "https://storage.googleapis.com/..."
+  "jobId": "job-c8a7b6e0-9b1f-4f8e-a8d2-7e5f6a4b3c2d",
+  "signedUrl": "https://storage.googleapis.com/...",
+  "expiresIn": 900,
+  "requiredHeaders": {
+    "Content-Type": "audio/webm",
+    "x-goog-meta-job_id": "job-c8a7b6e0-9b1f-4f8e-a8d2-7e5f6a4b3c2d",
+    "x-goog-meta-user_id": "some-firebase-auth-uid"
+  }
 }
 ```
 

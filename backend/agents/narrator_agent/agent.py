@@ -1,11 +1,11 @@
 from uuid import uuid4
 
-from google.adk.agents import BaseAgent
+from agents.base_processing_agent import BaseProcessingAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.cloud.texttospeech import SynthesisInput, TextToSpeechClient
 from google.genai.types import Content, Part
-from models.agent_models import ExplanationOutput, NarrationResult
+from models.agent_models import NarrationResult
 from services.logging_service import get_logger
 from services.storage_service import upload_blob_from_memory
 
@@ -14,7 +14,7 @@ from config import get_settings
 from .config import AUDIO_CONFIG, OPERATION_TIMEOUT, VOICE_SELECTION_PARAMS
 
 
-class NarratorAgent(BaseAgent):
+class NarratorAgent(BaseProcessingAgent):
     """
     An agent that synthesizes speech from the explanation text.
 
@@ -33,13 +33,7 @@ class NarratorAgent(BaseAgent):
         """
         Generates audio from an SSML text and saves it to Cloud Storage.
         """
-        job_id = context.session.state.get("job_id")
-        explanation_data = context.session.state.get("explanation_data")
-
-        if not job_id or not explanation_data:
-            raise ValueError("job_id and explanation_data must be in session state.")
-
-        explanation = ExplanationOutput.model_validate(explanation_data)
+        job_id, explanation = self._get_common_data(context)
         ssml_text = explanation.child_explanation_ssml
 
         self.logger.info(f"[{job_id}] Starting speech synthesis (SSML): {ssml_text}")

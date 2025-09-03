@@ -56,63 +56,116 @@ class AppStateNotifier extends StateNotifier<AppState> {
   }
 
   /// Stops recording and starts the AI processing.
+  /// This method orchestrates the entire process:
+  /// 1. Stops the recording and retrieves the audio data.
+  /// 2. Obtains a secure upload URL and a job ID from the backend.
+  /// 3. Uploads the audio file directly to Cloud Storage.
+  /// 4. Begins listening for real-time job status updates from Firestore.
   Future<void> stopRecordingAndProcess() async {
     // Get the current user ID from the auth service.
     final userId = _ref.read(authServiceProvider).currentUserId;
     if (userId == null) {
       state = state.copyWith(
         status: AppStatus.error,
-        errorMessage: '未ログインの状態では使用できません。',
+        errorMessage: 'ログインが必要です。',
       );
       return;
     }
 
+    state = state.copyWith(status: AppStatus.processing);
+
     try {
-      state = state.copyWith(status: AppStatus.processing);
+      // 1. Stop recording and get the audio data as bytes.
+      final audioBytes = await _stopAndGetAudioBytes();
 
-      final audioPath = await _audioRecorder.stop();
-      if (audioPath == null) {
-        throw Exception('録音データの保存に失敗しました。');
-      }
+      // 2. Call Cloud Functions to get a signed URL and job ID.
+      final uploadInfo = await _getSignedUrlAndJobId();
+      final uploadUrl = uploadInfo['uploadUrl'] as String;
+      final jobId = uploadInfo['jobId'] as String;
+      final requiredHeaders =
+          uploadInfo['requiredHeaders'] as Map<String, String>;
 
-      // On the web, `stop()` returns a blob URL. We need to fetch its content
-      // via an HTTP request to get the audio data as bytes.
-      final response = await http.get(Uri.parse(audioPath));
-      final audioBytes = response.bodyBytes;
-
-      // 1. Call Cloud Functions to get a signed URL and job ID.
-      final functions = _ref.read(_functionsProvider);
-      final callable = functions.httpsCallable(
-        FirebaseConstants.generateSignedUrl,
-      );
-      // Pass the 'contentType' argument required by the backend.
-      final result = await callable.call<Map<String, dynamic>>({
-        FirebaseConstants.contentType: FirebaseConstants.audioContentType,
-      });
-      // Key for the backend response.
-      final uploadUrl = result.data['signedUrl'] as String;
-      final jobId = result.data['jobId'] as String;
-
-      final requiredHeaders = Map<String, String>.from(
-        result.data['requiredHeaders'] as Map,
-      );
-
-      // 2. Upload the audio data to the obtained signed URL.
+      // 3. Upload the audio data to the obtained signed URL.
       await _uploadAudio(uploadUrl, audioBytes, requiredHeaders);
 
-      // 3. Listen for updates on the job document in Firestore.
+      // 4. Listen for updates on the job document in Firestore.
       _listenToJobUpdates(jobId);
     } on FirebaseFunctionsException catch (e) {
-      state = state.copyWith(
-        status: AppStatus.error,
-        errorMessage: 'サーバーとの通信に失敗しました: ${e.message}',
-      );
+      _handleFirebaseFunctionsError(e);
     } catch (e) {
       state = state.copyWith(
         status: AppStatus.error,
         errorMessage: 'エラーが発生しました: ${e.toString()}',
       );
     }
+  }
+
+  /// Stops the audio recorder and returns the recorded audio data as bytes.
+  Future<Uint8List> _stopAndGetAudioBytes() async {
+    final audioPath = await _audioRecorder.stop();
+    if (audioPath == null) {
+      throw Exception('録音データの保存に失敗しました。');
+    }
+
+    // On the web, `stop()` returns a blob URL. We need to fetch its content
+    // via an HTTP request to get the audio data as bytes.
+    try {
+      final response = await http.get(Uri.parse(audioPath));
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        throw Exception('録音データの取得に失敗しました (HTTP ${response.statusCode})');
+      }
+    } catch (e) {
+      throw Exception('録音データの読み込み中にエラーが発生しました: $e');
+    }
+  }
+
+  /// Calls the Cloud Function to get a signed URL and job details.
+  Future<Map<String, dynamic>> _getSignedUrlAndJobId() async {
+    final functions = _ref.read(_functionsProvider);
+    final callable = functions.httpsCallable(
+      FirebaseConstants.generateSignedUrl,
+    );
+
+    final result = await callable.call<Map<String, dynamic>>({
+      FirebaseConstants.contentType: FirebaseConstants.audioContentType,
+    });
+
+    final data = result.data;
+    final uploadUrl = data['signedUrl'] as String?;
+    final jobId = data['jobId'] as String?;
+    final requiredHeaders = data['requiredHeaders'] as Map?;
+
+    if (uploadUrl == null || jobId == null || requiredHeaders == null) {
+      throw Exception('サーバーからのレスポンス形式が正しくありません。');
+    }
+
+    return {
+      'uploadUrl': uploadUrl,
+      'jobId': jobId,
+      'requiredHeaders': Map<String, String>.from(requiredHeaders),
+    };
+  }
+
+  /// Handles specific errors from Firebase Functions and updates the state
+  /// with user-friendly messages.
+  void _handleFirebaseFunctionsError(FirebaseFunctionsException e) {
+    String message;
+    switch (e.code) {
+      case 'unauthenticated':
+        message = '認証が必要です。再度ログインしてください。';
+        break;
+      case 'invalid-argument':
+        message = 'リクエスト内容が正しくありません。';
+        break;
+      case 'internal':
+        message = 'サーバーで問題が発生しました。しばらくしてからもう一度お試しください。';
+        break;
+      default:
+        message = 'サーバーとの通信に失敗しました: ${e.message ?? '不明なエラー'}';
+    }
+    state = state.copyWith(status: AppStatus.error, errorMessage: message);
   }
 
   /// Uploads a file to Cloud Storage using a signed URL.
@@ -139,39 +192,57 @@ class AppStateNotifier extends StateNotifier<AppState> {
         .collection(FirebaseConstants.jobsCollection)
         .doc(jobId)
         .snapshots()
-        .listen((snapshot) async {
-          if (!snapshot.exists) return;
+        .listen(
+          (snapshot) async {
+            if (!snapshot.exists) return;
 
-          // Convert to a safe Job model.
-          final job = Job.fromFirestore(snapshot);
+            try {
+              // Convert to a safe Job model.
+              final job = Job.fromFirestore(snapshot);
 
-          switch (job.status) {
-            case JobStatus.completed:
-              // Get the download URL from the GCS path.
-              final imageUrl = job.imageGcsPath != null
-                  ? await _ref
-                        .read(storageServiceProvider)
-                        .getDownloadUrlFromGsPath(job.imageGcsPath!)
-                  : null;
+              switch (job.status) {
+                case JobStatus.completed:
+                  // Get the download URL from the GCS path.
+                  final imageUrl = job.imageGcsPath != null
+                      ? await _ref
+                            .read(storageServiceProvider)
+                            .getDownloadUrlFromGsPath(job.imageGcsPath!)
+                      : null;
 
-              state = state.copyWith(
-                status: AppStatus.success,
-                resultText: job.childExplanation,
-                imageUrl: imageUrl,
-              );
-              _jobSubscription?.cancel();
-              break;
-            case JobStatus.error:
+                  state = state.copyWith(
+                    status: AppStatus.success,
+                    resultText: job.childExplanation,
+                    imageUrl: imageUrl,
+                  );
+                  _jobSubscription?.cancel();
+                  break;
+                case JobStatus.error:
+                  state = state.copyWith(
+                    status: AppStatus.error,
+                    errorMessage: job.errorMessage ?? '不明なエラーが発生しました。',
+                  );
+                  _jobSubscription?.cancel();
+                  break;
+                default:
+                // Do nothing for in-progress statuses like 'processing', 'illustrating', etc.
+              }
+            } catch (e) {
+              // Handle potential errors during data parsing or URL fetching.
               state = state.copyWith(
                 status: AppStatus.error,
-                errorMessage: job.errorMessage ?? '不明なエラーが発生しました。',
+                errorMessage: '結果の処理中にエラーが発生しました: $e',
               );
               _jobSubscription?.cancel();
-              break;
-            default:
-            // Do nothing for in-progress statuses.
-          }
-        });
+            }
+          },
+          onError: (error) {
+            state = state.copyWith(
+              status: AppStatus.error,
+              errorMessage: 'データの同期に失敗しました: $error',
+            );
+            _jobSubscription?.cancel();
+          },
+        );
   }
 
   @override
