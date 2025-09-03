@@ -44,9 +44,11 @@ class ResultWriterAgent(BaseAgent):
             errors = state.get("parallel_errors") or {
                 "unknown": "One or more agents failed"
             }
-            self.logger.error(f"[{job_id}] Workflow failed: {errors}")
-            await update_job_status(job_id, "failed", {"errors": errors})
-            raise RuntimeError(f"Workflow failed: {errors}")
+            error_message = f"Workflow failed: {errors}"
+            self.logger.error(f"[{job_id}] {error_message}")
+            await update_job_status(job_id, "error", {"errorMessage": error_message})
+            # Raise an exception to ensure the overall process is marked as failed.
+            raise RuntimeError(error_message)
 
         try:
             # Retrieve and validate the required results from the session state.
@@ -62,10 +64,12 @@ class ResultWriterAgent(BaseAgent):
             )
 
             final_data = {
-                "transcription": transcription.model_dump(),
-                "explanation": explanation.model_dump(),
-                "illustration": illustration.model_dump(),
-                "narration": narration.model_dump(),
+                "transcribedText": transcription.text,
+                "childExplanation": explanation.child_explanation,
+                "parentHint": explanation.parent_hint,
+                "illustrationPrompt": explanation.illustration_prompt,
+                "imageGcsPath": illustration.image_gcs_path,
+                "finalAudioGcsPath": narration.final_audio_gcs_path,
             }
             await update_job_status(job_id, "completed", final_data)
 
@@ -84,6 +88,8 @@ class ResultWriterAgent(BaseAgent):
                 f"[{job_id}] Error writing results to Firestore: {e}", exc_info=True
             )
             await update_job_status(
-                job_id, "failed", {"errors": {"result_writer": str(e)}}
+                job_id,
+                "error",
+                {"errorMessage": f"Final result processing failed: {e}"},
             )
             raise

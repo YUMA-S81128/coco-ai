@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Cloud Storage Bucket for audio uploads from the client.
     audio_upload_bucket: str = Field(...)
 
+    # Firestore Collection
+    firestore_collection: str = Field(...)
+
 
 @lru_cache
 def get_settings() -> Settings:

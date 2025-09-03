@@ -15,4 +15,7 @@ class FirebaseConstants {
   // Request/Response Keys
   static const String contentType = 'contentType';
   static const String audioContentType = 'audio/webm';
+
+  // Local constants
+  static const String recordFileName = 'voice_record.webm';
 }

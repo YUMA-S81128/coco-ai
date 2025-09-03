@@ -52,28 +52,6 @@ class NarrationResult(BaseModel):
     )
 
 
-# ==============================
-# Request / Response Models
-# ==============================
-class JobRequest(BaseModel):
-    prompt: str
-
-
-class JobResponse(BaseModel):
-    job_id: str
-    status: str
-
-
-class JobResultResponse(BaseModel):
-    job_id: str
-    status: str
-    result: str | None = None
-    gcs_output: str | None = None
-
-
-# ==============================
-# CloudEvent Models
-# ==============================
 class CloudEventMetadata(BaseModel):
     """The 'metadata' field within the CloudEvent data payload."""
 

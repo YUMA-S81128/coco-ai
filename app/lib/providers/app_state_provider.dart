@@ -45,7 +45,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
           // Match the sample rate with the backend's Speech-to-Text configuration.
           sampleRate: 48000,
         ),
-        path: 'voice_record.webm',
+        // A path is required but not used on the web. The recording is stored in memory.
+        path: FirebaseConstants.recordFileName,
       );
     } else {
       state = state.copyWith(

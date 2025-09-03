@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     google_genai_use_vertexai: bool = True
 
     # Firestore Collection
-    firestore_collection: str = "jobs"
+    firestore_collection: str = Field(...)
 
     # timeout
     agent_timeout: int = 300

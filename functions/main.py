@@ -27,6 +27,7 @@ except Exception:
 options.set_global_options(region=options.SupportedRegion.ASIA_NORTHEAST1)
 
 AUDIO_UPLOAD_BUCKET_NAME: str | None = settings.audio_upload_bucket
+JOBS_COLLECTION_NAME: str = settings.firestore_collection
 
 _storage_client = storage.Client()
 _db = firestore.Client()
@@ -136,7 +137,7 @@ def generate_signed_url(
 
     # ---------------------- Firestore job registration -------------------
     try:
-        _db.collection("jobs").document(job_id).set(
+        _db.collection(JOBS_COLLECTION_NAME).document(job_id).set(
             {
                 "userId": user_id,
                 "status": "initializing",

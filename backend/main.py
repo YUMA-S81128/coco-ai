@@ -126,7 +126,7 @@ def build_root_agent() -> SequentialAgent:
 # ---------------------------
 @app.post("/invoke")
 async def invoke_pipeline(request: Request):
-    # 1. Parse and validate the incoming CloudEvent payload.
+    # Parse and validate the incoming CloudEvent payload.
     try:
         event_data = await _parse_cloudevent_payload(request)
     except Exception as e:
@@ -163,6 +163,7 @@ async def invoke_pipeline(request: Request):
         user_content = Content(parts=[Part(text=gcs_uri)])
 
         # Run the agent pipeline.
+        final_response_content = "No final response event received."
         async for event in runner.run_async(
             user_id=user_id, session_id=job_id, new_message=user_content
         ):
@@ -172,10 +173,9 @@ async def invoke_pipeline(request: Request):
         logger.info(
             f"[{job_id}] Workflow completed. Final response: {final_response_content}"
         )
-        await update_job_status(job_id, "completed")
     except Exception as e:
         logger.error(f"[{job_id}] Workflow failed: {e}", exc_info=True)
-        await update_job_status(job_id, "failed", {"errors": str(e)})
+        await update_job_status(job_id, "error", {"errorMessage": str(e)})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )

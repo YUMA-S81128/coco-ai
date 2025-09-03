@@ -37,10 +37,10 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
     cd coco-ai
     ```
 
-2.  **Firebase 接続情報の設定**:
-    Firebase コンソールから Web アプリ用の接続情報を取得し、プロジェクトルートに `config/dev.json` ファイルを作成して貼り付けます。この手順はフロントエンドの動作に必須です。詳細は `app/README.md` を参照してください。
+2.  **Firebase 接続情報の設定 (フロントエンド)**:
+    Flutter Web アプリの Firebase 設定は、ビルド時に環境変数として渡されます。プロジェクトのルートディレクトリに `config/dev.json` というファイルを作成し、Firebase コンソールから取得した Web アプリの設定を以下の形式で貼り付けます。
 
-    **`config/dev.json` の例:**
+    **`config/dev.json` の内容:**
 
     ```json
     {
@@ -52,6 +52,8 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
       "FIREBASE_APP_ID": "1:1234567890:web:abcdef1234567890"
     }
     ```
+
+    このファイルは、`flutter run` コマンド実行時に `--dart-define-from-file` フラグで読み込まれます。詳細は `app/README.md` を参照してください。
 
 3.  **各サービスのセットアップ**:
     `app`, `backend`, `functions` の各ディレクトリに移動し、それぞれの `README.md` に記載されている手順に従って、依存関係のインストールと仮想環境の構築を行ってください。
