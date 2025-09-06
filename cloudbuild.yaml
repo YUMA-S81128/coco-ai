@@ -29,21 +29,18 @@ steps:
           echo ">>> Deploying Firestore and Storage rules..."
           firebase deploy --only firestore:rules,storage --project=${PROJECT_ID}
         fi
+        # Functionsのデプロイ (v2)
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "functions" ]]; then
-          echo ">>> Deploying Cloud Functions..."
+          echo ">>> Deploying Cloud Functions v2..."
           cd functions
 
-          # 環境変数を Firebase Functions Config に設定
-          firebase functions:config:set \
-            audio.bucket="${_AUDIO_UPLOAD_BUCKET}" \
-            firestore.collection="${_FIRESTORE_COLLECTION}" \
-            --project=${PROJECT_ID}
-
-          # デプロイを実行
+          # v2 デプロイ (環境変数は Cloud Run の仕組みで渡す)
           firebase deploy --only "functions:${_FUNCTION_NAME}" \
-            --project=${PROJECT_ID}
+            --gen2 \
+            --project=${PROJECT_ID} \
+            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}"
 
-        cd ..
+          cd ..
         fi
 
   # --- ステップ3: バックエンドのビルドとCloud Runへのデプロイ ---
