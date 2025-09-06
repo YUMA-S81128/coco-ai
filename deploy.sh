@@ -82,7 +82,8 @@ deploy_app() {
 case "$TARGET" in
   rules) deploy_rules ;;
   functions) deploy_functions ;;
-  backend) deploy_backend; deploy_trigger ;; # バックエンドデプロイ後にトリガーも設定
+  backend) deploy_backend ;;
+  trigger) deploy_trigger ;;
   app) deploy_app ;;
   all)
     deploy_rules
@@ -93,7 +94,7 @@ case "$TARGET" in
     ;;
   *)
     echo "エラー: 不明なデプロイターゲット '$TARGET'"
-    echo "利用可能なターゲット: rules, functions, backend, app, all"
+    echo "利用可能なターゲット: rules, functions, backend, trigger, app, all"
     exit 1
     ;;
 esac

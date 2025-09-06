@@ -1,7 +1,7 @@
 steps:
   # --- ステップ1: フロントエンドのビルド (app または all の場合のみ実行) ---
-  # Flutterのビルドに特化したイメージを使用し、ビルド成果物をワークスペースに生成します。
-  - name: "cirrusci/flutter:stable"
+  # Flutterのビルドには、公式に推奨されているGitHub Container Registryのイメージを使用します。
+  - name: "ghcr.io/cirruslabs/flutter:stable"
     id: "Build Frontend"
     entrypoint: "bash"
     args:
@@ -10,46 +10,116 @@ steps:
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
           echo ">>> Building Flutter web app..."
           cd app
-          flutter build web --release
+          flutter build web --release --no-pub
         else
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
 
-  # --- ステップ2: 各種サービスのデプロイ ---
-  # gcloud と firebase コマンドが両方使える公式イメージを使用します。
-  # deploy.sh スクリプトに処理を委譲し、引数としてデプロイ対象を渡します。
-  - name: "gcr.io/firebase/firebase"
-    id: "Deploy Services"
+  # --- ステップ2: Firebase関連のデプロイ (Rules, Functions) ---
+  # Firebase公式のビルダーイメージを使用します。
+  - name: "us-docker.pkg.dev/firebase-cli-us/releases/firebase"
+    id: "Deploy Firebase Resources"
     entrypoint: "bash"
     args:
       - -c
       - |
-        echo ">>> Deploying target: ${_DEPLOY_TARGET}"
-        # デプロイスクリプトに実行権限を付与
-        chmod +x ./deploy.sh
-        # スクリプトを実行。引数にデプロイ対象を渡す
-        ./deploy.sh ${_DEPLOY_TARGET}
-    # Cloud Build の置換変数を、スクリプト内で使える環境変数として設定
-    env:
-      - "GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}" # Cloud Buildが自動的に設定するプロジェクトID
-      - "AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}"
-      - "PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}"
-      - "GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}"
+        # Rulesのデプロイ
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "rules" ]]; then
+          echo ">>> Deploying Firestore and Storage rules..."
+          firebase deploy --only firestore:rules,storage --project=${PROJECT_ID}
+        fi
+        # Functionsのデプロイ
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "functions" ]]; then
+          echo ">>> Deploying Cloud Functions..."
+          (cd functions && firebase deploy --only "functions:${_FUNCTION_NAME}" \
+            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}" \
+            --project=${PROJECT_ID})
+        fi
+
+  # --- ステップ3: バックエンドのビルドとCloud Runへのデプロイ ---
+  # gcloud公式のビルダーイメージを使用します。
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Deploy Backend to Cloud Run"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" ]]; then
+          echo ">>> Building and deploying backend service..."
+          IMAGE_TAG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_BACKEND_SERVICE_NAME}:${SHORT_SHA}"
+          # コンテナイメージをビルドしてArtifact Registryにプッシュ
+          gcloud builds submit backend --tag "${IMAGE_TAG}" --quiet --project=${PROJECT_ID}
+          # Cloud Runにデプロイ
+          gcloud run deploy ${_BACKEND_SERVICE_NAME} \
+            --image "${IMAGE_TAG}" \
+            --platform managed \
+            --region ${_REGION} \
+            --service-account ${_BACKEND_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
+            --no-allow-unauthenticated \
+            --set-env-vars="^##^GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}##AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}##PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}##GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}##FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}##SESSION_SERVICE=vertex" \
+            --project=${PROJECT_ID}
+        fi
+
+  # --- ステップ4: Eventarcトリガーの設定 ---
+  # gcloud公式のビルダーイメージを使用します。
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Configure Eventarc Trigger"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" || "${_DEPLOY_TARGET}" == "trigger" ]]; then
+          echo ">>> Configuring Eventarc trigger..."
+          # Cloud Runサービスを呼び出す権限をトリガー用SAに付与
+          gcloud run services add-iam-policy-binding ${_BACKEND_SERVICE_NAME} \
+            --region=${_REGION} \
+            --member="serviceAccount:${_TRIGGER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --role="roles/run.invoker" --project=${PROJECT_ID} > /dev/null
+          # トリガーが存在しない場合のみ作成
+          if ! gcloud eventarc triggers describe ${_TRIGGER_NAME} --location=${_REGION} --project=${PROJECT_ID} >/dev/null 2>&1; then
+            echo "Trigger ${_TRIGGER_NAME} not found. Creating..."
+            gcloud eventarc triggers create ${_TRIGGER_NAME} \
+              --location=${_REGION} \
+              --destination-run-service=${_BACKEND_SERVICE_NAME} \
+              --destination-run-region=${_REGION} \
+              --event-filters="type=google.cloud.storage.object.v1.finalized" \
+              --event-filters="bucket=${_AUDIO_UPLOAD_BUCKET}" \
+              --service-account=${_TRIGGER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
+              --project=${PROJECT_ID}
+          else
+            echo "Trigger ${_TRIGGER_NAME} already exists."
+          fi
+        fi
+
+  # --- ステップ5: フロントエンドのFirebase Hostingへのデプロイ ---
+  - name: "us-docker.pkg.dev/firebase-cli-us/releases/firebase"
+    id: "Deploy Frontend to Hosting"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
+          echo ">>> Deploying to Firebase Hosting..."
+          firebase deploy --only hosting --project=${PROJECT_ID}
+        fi
 
 # ビルドタイムアウトを20分に設定
 timeout: 1200s
 
 # 置換変数の定義。トリガー実行時に上書き可能。
 substitutions:
-  # デプロイ対象 (all, app, backend, functions, rules)
+  # デプロイ対象 (all, app, backend, functions, rules, trigger)
   _DEPLOY_TARGET: "all"
-  # .envファイルで管理していた変数を渡す
-  _AUDIO_UPLOAD_BUCKET: "your-audio-upload-bucket" # ここに実際のバケット名を設定
-  _PROCESSED_AUDIO_BUCKET: "your-processed-audio-bucket" # ここに実際のバケット名を設定
-  _GENERATED_IMAGE_BUCKET: "your-generated-image-bucket" # ここに実際のバケット名を設定
-
-options:
-  # デプロイコマンドは高い権限を必要とするため、検証済みのワーカープールを使用
-  pool:
-    name: "projects/${PROJECT_ID}/locations/global/workerPools/e2-standard-2"
-  logging: CLOUD_LOGGING_ONLY
+  # config.shで定義されている変数を渡す
+  _REGION: "asia-northeast1"
+  _BACKEND_SERVICE_NAME: "coco-ai-backend"
+  _FUNCTION_NAME: "generate_signed_url"
+  _BACKEND_SA_NAME: "coco-ai-backend-sa"
+  _TRIGGER_SA_NAME: "coco-ai-eventarc-invoker"
+  _TRIGGER_NAME: "trigger-coco-ai-storage"
+  _FIRESTORE_COLLECTION: "jobs"
+  _ARTIFACT_REGISTRY_REPO: "coco-ai"
+  # .envで管理していた変数を渡す
+  _AUDIO_UPLOAD_BUCKET: "your-audio-upload-bucket"
+  _PROCESSED_AUDIO_BUCKET: "your-processed-audio-bucket"
+  _GENERATED_IMAGE_BUCKET: "your-generated-image-bucket"
