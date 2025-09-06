@@ -106,6 +106,10 @@ steps:
 # ビルドタイムアウトを20分に設定
 timeout: 1200s
 
+# ログの保存先をCloud Loggingのみに設定
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 # 置換変数の定義。トリガー実行時に上書き可能。
 substitutions:
   # デプロイ対象 (all, app, backend, functions, rules, trigger)
