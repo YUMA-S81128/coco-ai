@@ -26,12 +26,16 @@ echo "--- Cloud Storage バケットを作成中 ---"
 # Firebaseコンソールでの管理やセキュリティルールを適用したい場合は、
 # 作成後にFirebaseコンソールからこのバケットを手動でインポートしてください。
 for BUCKET in ${AUDIO_UPLOAD_BUCKET} ${PROCESSED_AUDIO_BUCKET} ${GENERATED_IMAGE_BUCKET}; do
-  echo "Creating bucket: ${BUCKET}"
-  gcloud storage buckets create gs://${BUCKET} \
-    --project=${GOOGLE_CLOUD_PROJECT_ID} \
-    --location=${REGION} \
-    --uniform-bucket-level-access \
-    --public-access-prevention
+  if gcloud storage buckets describe gs://${BUCKET} >/dev/null 2>&1; then
+    echo "Bucket gs://${BUCKET} は既に存在します。作成をスキップします。"
+  else
+    echo "Creating bucket: gs://${BUCKET}"
+    gcloud storage buckets create gs://${BUCKET} \
+      --project=${GOOGLE_CLOUD_PROJECT_ID} \
+      --location=${REGION} \
+      --uniform-bucket-level-access \
+      --public-access-prevention
+  fi
 done
 
 # --- Artifact Registryリポジトリを作成 ---
@@ -68,35 +72,35 @@ echo "--- バックエンド用サービスアカウントに必要なIAMロー�
 
 # プロジェクトレベルで付与するロールのリスト。可読性とメンテナンス性向上のためループ処理に集約。
 PROJECT_LEVEL_ROLES=(
-  "roles/logging.logWriter"      # ログ書き込み
-  "roles/aiplatform.user"        # Vertex AI (Gemini)
-  "roles/cloudtts.client"        # Text-to-Speech API
-  "roles/cloudspeech.client"     # Speech-to-Text API
-  "roles/datastore.user"         # Firestoreへの書き込み
+  "roles/logging.logWriter"          # ログ書き込み
+  "roles/aiplatform.user"            # Vertex AI (Gemini)
+  "roles/speech.client"              # Speech-to-Text API
+  "roles/datastore.user"             # Firestoreへの書き込み
 )
 
 echo "プロジェクトレベルのロールを付与中..."
 for ROLE in "${PROJECT_LEVEL_ROLES[@]}"; do
-  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1 \
+  # 標準出力を/dev/nullにリダイレクトして成功時の長いポリシー出力を抑制し、エラー出力は表示されるようにします
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="${ROLE}"
+    --role="${ROLE}" >/dev/null
 done
 
 # バケットごとに、より細かい権限を付与
 # アップロードされた質問音声用バケットへの読み取り権限
-gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} >/dev/null 2>&1 \
+gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectViewer"
+  --role="roles/storage.objectViewer" >/dev/null
 
 # 解説音声用バケットへの書き込み権限
-gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} >/dev/null 2>&1 \
+gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator"
+  --role="roles/storage.objectCreator" >/dev/null
 
 # 説明画像用バケットへの書き込み権限
-gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} >/dev/null 2>&1 \
+gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator"
+  --role="roles/storage.objectCreator" >/dev/null
 
 echo "--- Cloud Build サービスアカウントに必要なIAMロールを付与中 ---"
 CLOUDBUILD_ROLES=(
@@ -111,9 +115,10 @@ CLOUDBUILD_ROLES=(
 
 echo "Cloud Build サービスアカウント (${CLOUDBUILD_SA_NAME}) にロールを付与中..."
 for ROLE in "${CLOUDBUILD_ROLES[@]}"; do
-  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1 \
+  # 標準出力を/dev/nullにリダイレクトして成功時の長いポリシー出力を抑制し、エラー出力は表示されるようにします
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
     --member="serviceAccount:${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}" \
-    --role="${ROLE}"
+    --role="${ROLE}" >/dev/null
 done
 
 echo "✅ Infrastructure setup complete."
