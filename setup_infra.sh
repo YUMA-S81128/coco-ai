@@ -3,7 +3,8 @@ set -e # コマンドが失敗したらすぐにスクリプトを終了する
 
 # --- 設定 ---
 # プロジェクトルートの .env ファイルから環境変数を読み込む
-if [ -f .env ]; then
+# CI環境では環境変数が直接設定されるため、ローカル実行時のみ .env を読み込む
+if [ -f .env ] && [ -z "$GOOGLE_CLOUD_PROJECT_ID" ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
@@ -39,19 +40,28 @@ else
   gcloud artifacts repositories create ${ARTIFACT_REGISTRY_REPO} \
     --repository-format=docker --location=${REGION}
 fi
+ 
+# --- サービスアカウントの作成 ---
+echo "--- サービスアカウントを確認・作成中 ---"
 
-# --- サービスアカウント作成（Cloud Run実行用） ---
-echo "--- Cloud Run用のサービスアカウントを確認・作成中: ${BACKEND_SA_NAME} ---"
-if gcloud iam service-accounts describe ${SERVICE_ACCOUNT_EMAIL} >/dev/null 2>&1; then
-  echo "サービスアカウント ${BACKEND_SA_NAME} は既に存在します。"
-else
-  echo "サービスアカウント ${BACKEND_SA_NAME} を作成中..."
-  gcloud iam service-accounts create ${BACKEND_SA_NAME} \
-    --display-name="Coco-Ai Backend Service Account"
-fi
+SERVICE_ACCOUNTS=(
+  "${BACKEND_SA_NAME}|Coco-Ai Backend Service Account|${SERVICE_ACCOUNT_EMAIL}"
+  "${TRIGGER_SA_NAME}|Coco-Ai Eventarc Invoker|${TRIGGER_SERVICE_ACCOUNT_EMAIL}"
+  "${CLOUDBUILD_SA_NAME}|Coco-Ai Cloud Build Service Account|${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}"
+)
+
+for sa_info in "${SERVICE_ACCOUNTS[@]}"; do
+  IFS='|' read -r sa_name sa_display_name sa_email <<< "$sa_info"
+  if ! gcloud iam service-accounts describe ${sa_email} >/dev/null 2>&1; then
+    echo "サービスアカウント ${sa_name} を作成中..."
+    gcloud iam service-accounts create ${sa_name} --display-name="${sa_display_name}"
+  else
+    echo "サービスアカウント ${sa_name} は既に存在します。"
+  fi
+done
 
 # --- サービスアカウントへの権限付与 ---
-echo "--- サービスアカウントに必要なIAMロールを付与中 ---"
+echo "--- バックエンド用サービスアカウントに必要なIAMロールを付与中 ---"
 
 # プロジェクトレベルで付与するロールのリスト。可読性とメンテナンス性向上のためループ処理に集約。
 PROJECT_LEVEL_ROLES=(
@@ -64,25 +74,43 @@ PROJECT_LEVEL_ROLES=(
 
 echo "プロジェクトレベルのロールを付与中..."
 for ROLE in "${PROJECT_LEVEL_ROLES[@]}"; do
-  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1 \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="${ROLE}" > /dev/null 2>&1
+    --role="${ROLE}"
 done
 
 # バケットごとに、より細かい権限を付与
 # アップロードされた質問音声用バケットへの読み取り権限
-gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} \
+gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} >/dev/null 2>&1 \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectViewer" > /dev/null 2>&1
+  --role="roles/storage.objectViewer"
 
 # 解説音声用バケットへの書き込み権限
-gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
+gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} >/dev/null 2>&1 \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator" > /dev/null 2>&1
+  --role="roles/storage.objectCreator"
 
 # 説明画像用バケットへの書き込み権限
-gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
+gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} >/dev/null 2>&1 \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator" > /dev/null 2>&1
+  --role="roles/storage.objectCreator"
+
+echo "--- Cloud Build サービスアカウントに必要なIAMロールを付与中 ---"
+CLOUDBUILD_ROLES=(
+  "roles/cloudbuild.builds.editor"    # Cloud Build を使用してビルドを実行
+  "roles/run.developer"               # Cloud Run サービスのデプロイと更新
+  "roles/eventarc.admin"              # Eventarc トリガーの作成と管理
+  "roles/iam.serviceAccountUser"      # Cloud Run/Functions にサービスアカウントを関連付ける
+  "roles/firebaserules.admin"         # Firestore/Storage ルールのデプロイ
+  "roles/cloudfunctions.developer"    # Cloud Functions のデプロイ
+  "roles/firebasehosting.admin"       # Firebase Hosting のデプロイ
+)
+
+echo "Cloud Build サービスアカウント (${CLOUDBUILD_SA_NAME}) にロールを付与中..."
+for ROLE in "${CLOUDBUILD_ROLES[@]}"; do
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1 \
+    --member="serviceAccount:${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}" \
+    --role="${ROLE}"
+done
 
 echo "✅ Infrastructure setup complete."

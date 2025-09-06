@@ -2,24 +2,27 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // ユーザーが自分のアップロードした音声ファイルを読み取ることを許可する。
-    // 書き込みはバックエンドからの署名付きURLによって処理される。
+    // 認証されたユーザーが、パスに含まれるuserIdと一致するかどうかを判定する共通関数
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // ユーザーがアップロードした音声ファイル。読み取りのみ許可する。
+    // 書き込みは、Cloud Functionが生成した署名付きURLによって行われるため、クライアントからの直接書き込みは拒否する。
     match /uploads/{userId}/{jobId}/{allPaths=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
       allow write: if false;
     }
 
-    // Allow users to read images from their own job folders.
-    // Write access is handled by signed URLs from the backend, so client write is not needed.
+    // バックエンドによって生成された画像ファイル。読み取りのみ許可する。
     match /images/{userId}/{jobId}/{allPaths=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
       allow write: if false;
     }
 
-    // ユーザーが自分のジョブで生成されたナレーション音声ファイルを読み取ることを許可する。
-    // 書き込みはバックエンドによって処理される。
+    // バックエンドによって生成されたナレーション音声ファイル。読み取りのみ許可する。
     match /narrations/{userId}/{jobId}/{allPaths=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
       allow write: if false;
     }
   }

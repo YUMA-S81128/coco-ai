@@ -3,16 +3,16 @@ rules_version='2'
 service cloud.firestore {
   match /databases/{database}/documents {
     match /jobs/{jobId} {
-      // Allow the user who owns the job to read it for real-time updates.
+      // ジョブの所有者であるユーザーが、リアルタイム更新のためにドキュメントを読み取ることを許可する。
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
 
-      // Allow an authenticated user to create a new job document,
-      // but only if they set the 'userId' field to their own UID.
-      // This is used by the 'generate_signed_url' Cloud Function.
+      // 認証済みユーザーが新しいジョブドキュメントを作成することを許可する。
+      // ただし、'userId'フィールドを自身のUIDに設定する場合に限る。
+      // このルールは 'generate_signed_url' Cloud Function によって使用される。
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
 
-      // Deny direct updates and deletes from the client.
-      // All updates are handled by the backend service account, which bypasses these rules.
+      // クライアントからの直接の更新と削除は拒否する。
+      // すべての更新は、これらのルールをバイパスするバックエンドのサービスアカウントによって処理される。
       allow update, delete: if false;
     }
   }

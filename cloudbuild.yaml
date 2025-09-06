@@ -1,0 +1,55 @@
+steps:
+  # --- ステップ1: フロントエンドのビルド (app または all の場合のみ実行) ---
+  # Flutterのビルドに特化したイメージを使用し、ビルド成果物をワークスペースに生成します。
+  - name: "cirrusci/flutter:stable"
+    id: "Build Frontend"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
+          echo ">>> Building Flutter web app..."
+          cd app
+          flutter build web --release
+        else
+          echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
+        fi
+
+  # --- ステップ2: 各種サービスのデプロイ ---
+  # gcloud と firebase コマンドが両方使える公式イメージを使用します。
+  # deploy.sh スクリプトに処理を委譲し、引数としてデプロイ対象を渡します。
+  - name: "gcr.io/firebase/firebase"
+    id: "Deploy Services"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        echo ">>> Deploying target: ${_DEPLOY_TARGET}"
+        # デプロイスクリプトに実行権限を付与
+        chmod +x ./deploy.sh
+        # スクリプトを実行。引数にデプロイ対象を渡す
+        ./deploy.sh ${_DEPLOY_TARGET}
+    # Cloud Build の置換変数を、スクリプト内で使える環境変数として設定
+    env:
+      - "GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}" # Cloud Buildが自動的に設定するプロジェクトID
+      - "AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}"
+      - "PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}"
+      - "GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}"
+
+# ビルドタイムアウトを20分に設定
+timeout: 1200s
+
+# 置換変数の定義。トリガー実行時に上書き可能。
+substitutions:
+  # デプロイ対象 (all, app, backend, functions, rules)
+  _DEPLOY_TARGET: "all"
+  # .envファイルで管理していた変数を渡す
+  _AUDIO_UPLOAD_BUCKET: "your-audio-upload-bucket" # ここに実際のバケット名を設定
+  _PROCESSED_AUDIO_BUCKET: "your-processed-audio-bucket" # ここに実際のバケット名を設定
+  _GENERATED_IMAGE_BUCKET: "your-generated-image-bucket" # ここに実際のバケット名を設定
+
+options:
+  # デプロイコマンドは高い権限を必要とするため、検証済みのワーカープールを使用
+  pool:
+    name: "projects/${PROJECT_ID}/locations/global/workerPools/e2-standard-2"
+  logging: CLOUD_LOGGING_ONLY
