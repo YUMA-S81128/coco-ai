@@ -18,7 +18,7 @@ steps:
 
   # --- ステップ2: Firebase関連のデプロイ (Rules, Functions) ---
   # Firebase公式のビルダーイメージを使用します。
-  - name: "us-docker.pkg.dev/firebase-cli-us/releases/firebase"
+  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
     id: "Deploy Firebase Resources"
     entrypoint: "bash"
     args:
@@ -93,7 +93,7 @@ steps:
         fi
 
   # --- ステップ5: フロントエンドのFirebase Hostingへのデプロイ ---
-  - name: "us-docker.pkg.dev/firebase-cli-us/releases/firebase"
+  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
     id: "Deploy Frontend to Hosting"
     entrypoint: "bash"
     args:
