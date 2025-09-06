@@ -48,10 +48,10 @@ steps:
           echo ">>> Building and deploying backend service..."
           IMAGE_TAG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_BACKEND_SERVICE_NAME}:${SHORT_SHA}"
           # コンテナイメージをビルドしてArtifact Registryにプッシュ
-          gcloud builds submit backend --tag "${IMAGE_TAG}" --quiet --project=${PROJECT_ID}
+          gcloud builds submit backend --tag "$${IMAGE_TAG}" --quiet --project=${PROJECT_ID}
           # Cloud Runにデプロイ
           gcloud run deploy ${_BACKEND_SERVICE_NAME} \
-            --image "${IMAGE_TAG}" \
+            --image "$${IMAGE_TAG}" \
             --platform managed \
             --region ${_REGION} \
             --service-account ${_BACKEND_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
