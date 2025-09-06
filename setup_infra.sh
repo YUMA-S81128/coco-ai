@@ -104,6 +104,7 @@ gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
 
 echo "--- Cloud Build サービスアカウントに必要なIAMロールを付与中 ---"
 CLOUDBUILD_ROLES=(
+  "roles/logging.logWriter"           # ログ書き込み
   "roles/cloudbuild.builds.editor"    # Cloud Build を使用してビルドを実行
   "roles/run.developer"               # Cloud Run サービスのデプロイと更新
   "roles/eventarc.admin"              # Eventarc トリガーの作成と管理
