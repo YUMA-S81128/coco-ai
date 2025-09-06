@@ -7,21 +7,11 @@ service firebase.storage {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // ユーザーがアップロードした音声ファイル。読み取りのみ許可する。
-    // 書き込みは、Cloud Functionが生成した署名付きURLによって行われるため、クライアントからの直接書き込みは拒否する。
-    match /uploads/{userId}/{jobId}/{allPaths=**} {
-      allow read: if isOwner(userId);
-      allow write: if false;
-    }
-
-    // バックエンドによって生成された画像ファイル。読み取りのみ許可する。
-    match /images/{userId}/{jobId}/{allPaths=**} {
-      allow read: if isOwner(userId);
-      allow write: if false;
-    }
-
-    // バックエンドによって生成されたナレーション音声ファイル。読み取りのみ許可する。
-    match /narrations/{userId}/{jobId}/{allPaths=**} {
+    // 各バケット内のファイルへのアクセスルール
+    // ファイルパスは `{userId}/{jobId}/{fileName}` の形式を想定しており、
+    // どのバケットでも、認証された所有者のみが読み取り可能です。
+    // クライアントからの直接書き込みは、署名付きURLやバックエンド経由で行うため拒否します。
+    match /{userId}/{jobId}/{allPaths=**} {
       allow read: if isOwner(userId);
       allow write: if false;
     }
