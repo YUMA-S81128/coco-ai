@@ -31,6 +31,14 @@
 - Eventarc は、Cloud Run サービスの`/invoke`エンドポイントに**CloudEvent**を送信します。
 - `main.py` の FastAPI アプリケーションがこのイベントを解析し、ファイルの GCS URI とジョブのメタデータを抽出してパイプラインを実行します。
 
+### セキュリティに関する注意点：メタデータの検証
+
+このアーキテクチャでは、フロントエンドが署名付き URL を使用してファイルをアップロードする際に、`x-goog-meta-job-id` と `x-goog-meta-user-id` というカスタムメタデータを付与します。
+
+署名付き URL 自体は改ざん不可能ですが、このメタデータを含むヘッダーはクライアント側で設定されるため、**Cloud Run サービス側でこのメタデータが確実に存在し、意図した形式であることを検証することが不可欠です。**
+
+現在の実装では、`main.py` の `_parse_cloudevent_payload` 関数内で、Pydantic モデル (`StorageObjectData`) を使ってこの検証を行っています。CloudEvent のペイロードに必要なメタデータが含まれていない場合、バリデーションエラーが発生し、処理は安全に停止されます。これにより、不正なリクエストや改ざんからバックエンドのワークフローを保護しています。
+
 ## 🚀 開発ガイド
 
 ### 前提条件
@@ -101,22 +109,26 @@ uvicorn main:app --reload
 このサービスは、コンテナとして Google Cloud Run にデプロイされるように設計されています。
 
 1.  **Docker コンテナのビルド:**
+    `setup_infra.sh` で作成した Artifact Registry リポジトリにコンテナイメージをビルドしてプッシュします。
 
     ```bash
-    gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/coco-ai-backend
+    # YOUR_REGION は asia-northeast1 など
+    gcloud builds submit --tag YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/coco-ai/coco-ai-backend
     ```
 
-    `YOUR_PROJECT_ID` を実際の Google Cloud プロジェクト ID に置き換えてください。
+    `YOUR_REGION` と `YOUR_PROJECT_ID` を実際の値に置き換えてください。
 
 2.  **Cloud Run へのデプロイ:**
     ```bash
     gcloud run deploy coco-ai-backend \
-      --image gcr.io/YOUR_PROJECT_ID/coco-ai-backend \
+      --image YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/coco-ai/coco-ai-backend \
       --platform managed \
       --region YOUR_REGION \
-      --env-file .env
+      --service-account coco-ai-backend-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+      --no-allow-unauthenticated
     ```
-    - `YOUR_PROJECT_ID` と `YOUR_REGION`　を実際の値に置き換えてください。.
+    - `YOUR_PROJECT_ID` と `YOUR_REGION` を実際の値に置き換えてください。
+    - `deploy.sh` スクリプトは、環境変数を `--set-env-vars` フラグで直接渡します。ローカルから手動でデプロイする場合は、`--env-file .env` を使用することもできます。
     - **セキュリティに関する注意**: 上記のコマンド例には含まれていませんが、本番環境では `--allow-unauthenticated` フラグを使用せず、認証を有効にすることを強く推奨します。Eventarc トリガーに Cloud Run サービスを呼び出す権限 (`roles/run.invoker`) を持つサービスアカウントを関連付けることで、セキュアな呼び出しが可能です。
     - デプロイする前に、`.env` ファイルが正しく設定されていることを確認してください。
 

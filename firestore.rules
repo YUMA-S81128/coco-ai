@@ -2,10 +2,18 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only the authenticated user who owns the job document can read or write it.
-    // Backend services with admin privileges can bypass these rules.
     match /jobs/{jobId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Allow the user who owns the job to read it for real-time updates.
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Allow an authenticated user to create a new job document,
+      // but only if they set the 'userId' field to their own UID.
+      // This is used by the 'generate_signed_url' Cloud Function.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+
+      // Deny direct updates and deletes from the client.
+      // All updates are handled by the backend service account, which bypasses these rules.
+      allow update, delete: if false;
     }
   }
 }
