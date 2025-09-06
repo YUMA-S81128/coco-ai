@@ -2,15 +2,18 @@
 set -e # コマンドが失敗したらすぐにスクリプトを終了する
 
 # --- 設定 ---
-# プロジェクトルートの .env ファイルから環境変数を読み込む
-# CI環境では環境変数が直接設定されるため、ローカル実行時のみ .env を読み込む
-if [ -f .env ] && [ -z "$GOOGLE_CLOUD_PROJECT_ID" ]; then
-  export $(grep -v '^#' .env | xargs)
-fi
+# このスクリプトは、Cloud Shellなどの環境で実行されることを想定しています。
+# 実行前に、以下の環境変数を設定してください。
+#
+# export GOOGLE_CLOUD_PROJECT_ID="your-gcp-project-id"
+# export AUDIO_UPLOAD_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-input-audio"
+# export PROCESSED_AUDIO_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-narrations"
+# export GENERATED_IMAGE_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-images"
 
 # 必須の環境変数が設定されているか確認
 if [ -z "$GOOGLE_CLOUD_PROJECT_ID" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ] || [ -z "$PROCESSED_AUDIO_BUCKET" ] || [ -z "$GENERATED_IMAGE_BUCKET" ]; then
-  echo "エラー: 必須の環境変数が設定されていません。.env ファイルを確認してください。"
+  echo "エラー: 必須の環境変数（GOOGLE_CLOUD_PROJECT_ID, AUDIO_UPLOAD_BUCKET, PROCESSED_AUDIO_BUCKET, GENERATED_IMAGE_BUCKET）が設定されていません。"
+  echo "スクリプトの冒頭のコメントを参考に、環境変数を設定してから再実行してください。"
   exit 1
 fi
 

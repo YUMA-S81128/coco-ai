@@ -2,13 +2,13 @@
 set -e # コマンドが失敗したらすぐにスクリプトを終了する
 
 # --- 設定 ---
-# CI環境では環境変数が直接設定されるため、ローカル実行時のみ .env を読み込む
-if [ -f .env ] && [ -z "$GOOGLE_CLOUD_PROJECT_ID" ]; then
-  export $(grep -v '^#' .env | xargs)
-fi
+# このスクリプトは、Cloud BuildやCloud Shellなどの環境で実行されることを想定しています。
+# 実行前に、必要な環境変数が設定されている必要があります。
+# ローカルで実行する場合は、.env ファイルを読み込むために `source .env` などを実行してください。
 
 if [ -z "$GOOGLE_CLOUD_PROJECT_ID" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ]; then
-  echo "エラー: 必須の環境変数が設定されていません。.env ファイルを確認してください。"
+  echo "エラー: 必須の環境変数（GOOGLE_CLOUD_PROJECT_ID, AUDIO_UPLOAD_BUCKETなど）が設定されていません。"
+  echo "Cloud Buildの置換変数や、実行環境の環境変数を確認してください。"
   exit 1
 fi
 
