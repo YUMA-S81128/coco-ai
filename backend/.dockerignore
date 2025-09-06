@@ -1,0 +1,56 @@
+# -----------------
+# VCS
+# -----------------
+.git
+.gitignore
+
+# -----------------
+# Python artifacts
+# -----------------
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# -----------------
+# IDE / Editor
+# -----------------
+.idea/
+.vscode/
+
+# -----------------
+# Local env & secrets
+# -----------------
+.env
+local.env
+*.pem
+*.key
+*.tfstate
+*.tfvars
+
+# -----------------
+# CI/CD
+# -----------------
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# -----------------
+# Tests / Docs
+# -----------------
+tests/
+docs/
+*.md
+
+# -----------------
+# Cache / Temp
+# -----------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+.DS_Store

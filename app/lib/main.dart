@@ -2,6 +2,7 @@ import 'package:app/screens/home_screen.dart';
 import 'package:app/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,16 @@ Future<void> main() async {
 
   // Initialize Firebase with the retrieved options.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Sign in anonymously to get a unique user ID.
+  try {
+    await FirebaseAuth.instance.signInAnonymously();
+    debugPrint(
+      'Signed in anonymously with user: ${FirebaseAuth.instance.currentUser?.uid}',
+    );
+  } catch (e) {
+    debugPrint('Failed to sign in anonymously: $e');
+  }
 
   // In debug mode, connect to the local Firebase Emulator Suite.
   if (kDebugMode) {
