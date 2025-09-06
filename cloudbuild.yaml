@@ -10,7 +10,8 @@ steps:
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
           echo ">>> Building Flutter web app..."
           cd app
-          flutter build web --release --no-pub
+          flutter pub get
+          flutter build web --release
         else
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
