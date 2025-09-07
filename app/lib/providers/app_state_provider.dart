@@ -37,7 +37,9 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   /// Starts the audio recording.
   Future<void> startRecording() async {
-    if (await _audioRecorder.hasPermission()) {
+    try {
+      // `start`メソッドは、まだ許可されていない場合に許可ダイアログをトリガーします。
+      // ユーザーが許可を拒否した場合に備え、try-catchブロックで囲みます。
       state = state.copyWith(status: AppStatus.recording);
       await _audioRecorder.start(
         const RecordConfig(
@@ -49,10 +51,10 @@ class AppStateNotifier extends StateNotifier<AppState> {
         // A path is required but not used on the web. The recording is stored in memory.
         path: FirebaseConstants.recordFileName,
       );
-    } else {
+    } catch (e) {
       state = state.copyWith(
         status: AppStatus.error,
-        errorMessage: 'マイクの使用が許可されていません。',
+        errorMessage: 'マイクの使用許可が得られませんでした。ブラウザの設定を確認してください。',
       );
     }
   }

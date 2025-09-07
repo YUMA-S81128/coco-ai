@@ -22,11 +22,6 @@ echo "--- プロジェクトを設定中 ---"
 source "$(dirname "$0")/config.sh"
 gcloud config set project ${GOOGLE_CLOUD_PROJECT_ID}
 
-echo "--- 必要なAPIを有効化中 ---"
-# Secret Manager API を有効化
-gcloud services enable secretmanager.googleapis.com \
-  firebase.googleapis.com
-
 echo "--- Cloud Storage バケットを作成中 ---"
 # Firebaseコンソールでの管理やセキュリティルールを適用したい場合は、
 # 作成後にFirebaseコンソールからこのバケットを手動でインポートしてください。
