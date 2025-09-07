@@ -1,7 +1,6 @@
-# cloudbuild.yml — 修正版（コメント付き）
+# cloudbuild.yml — 修正版（TOKEN のテンプレート衝突を回避、IMAGE_TAG をエスケープ）
 steps:
-  # --- ステップ0: デバッグ（オプション）: ビルドSAから Firebase プロジェクト情報を確認する ---
-  # NOTE: 失敗している場合はここで Cloud Build 実行 SA から見た projects API の応答をログに残せます。
+  # --- ステップ0: デバッグ（オプション）: Build SA からの Firebase API 応答を確認 ---
   - name: "gcr.io/cloud-builders/gcloud"
     id: "Debug: Firebase project metadata (build-SA view)"
     entrypoint: "bash"
@@ -10,11 +9,10 @@ steps:
       - |
         echo "=== Debug: firebase project metadata (as Build SA) ==="
         gcloud --version || true
-        TOKEN=$(gcloud auth print-access-token)
         echo "Calling Firebase projects.get..."
-        curl -s -H "Authorization: Bearer ${TOKEN}" "https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}" | head -c 2000 || true
+        curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}" | head -c 2000 || true
         echo "Calling Firebasestorage buckets list..."
-        curl -s -H "Authorization: Bearer ${TOKEN}" "https://firebasestorage.googleapis.com/v1/projects/${PROJECT_ID}/buckets" | head -c 2000 || true
+        curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://firebasestorage.googleapis.com/v1/projects/${PROJECT_ID}/buckets" | head -c 2000 || true
 
   # --- ステップ1: フロントエンドのビルド (app) ---
   - name: "ghcr.io/cirruslabs/flutter:stable"
@@ -32,7 +30,7 @@ steps:
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
 
-  # --- ステップ2: Firebase Rulesのデプロイ ---
+  # --- ステップ2: Firebase Rules のデプロイ ---
   - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
     id: "Deploy Firebase Rules"
     entrypoint: "bash"
@@ -56,9 +54,8 @@ steps:
       - -c
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "functions" ]]; then
-          echo ">>> Deploying Cloud Functions v2..."
+          echo ">>> Deploying Cloud Functions gen2"
           gcloud --version
-          # 注意: gcloud functions deploy では関数名を直接指定します（firebase の --only 構文ではない）
           gcloud functions deploy ${_FUNCTION_NAME} \
             --gen2 \
             --runtime=python313 \
@@ -67,12 +64,12 @@ steps:
             --entry-point=generate_signed_url \
             --trigger-http \
             --project=${PROJECT_ID} \
-            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}" \
+            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}"
         else
           echo ">>> Skipping Cloud Functions deployment for target: ${_DEPLOY_TARGET}"
         fi
 
-  # --- ステップ4: BackendイメージをビルドしてArtifact Registryへプッシュ ---
+  # --- ステップ4: Backend イメージをビルドして Artifact Registry へプッシュ ---
   - name: "gcr.io/cloud-builders/docker"
     id: "Build backend image"
     entrypoint: "bash"
@@ -81,13 +78,13 @@ steps:
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" ]]; then
           IMAGE_TAG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_BACKEND_SERVICE_NAME}:${SHORT_SHA}"
-          echo ">>> Building image ${IMAGE_TAG}"
+          echo ">>> Building image $${IMAGE_TAG}"
           docker build -t "$${IMAGE_TAG}" backend
-          echo ">>> Pushing image ${IMAGE_TAG}"
+          echo ">>> Pushing image $${IMAGE_TAG}"
           docker push "$${IMAGE_TAG}"
         fi
 
-  # --- ステップ5: Cloud Runへデプロイ（gcloud） ---
+  # --- ステップ5: Cloud Run へデプロイ ---
   - name: "gcr.io/cloud-builders/gcloud"
     id: "Deploy Backend to Cloud Run"
     entrypoint: "bash"
@@ -103,7 +100,7 @@ steps:
             --region ${_REGION} \
             --service-account ${_BACKEND_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
             --no-allow-unauthenticated \
-            --set-env-vars="^##^GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}##AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}##PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}##GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}##FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}##SESSION_SERVICE=inmemory" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID},AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET},GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},SESSION_SERVICE=inmemory" \
             --project=${PROJECT_ID}
         fi
 
@@ -149,7 +146,6 @@ steps:
           firebase deploy --only hosting --project=${PROJECT_ID}
         fi
 
-# ビルドタイムアウト
 timeout: 1200s
 
 options:
