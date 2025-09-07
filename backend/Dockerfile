@@ -23,8 +23,7 @@ COPY pyproject.toml uv.lock ./
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
 # create venv and install deps according to lock
-# VIRTUAL_ENV が設定されているため、uv は自動的に /opt/venv を使います
-RUN uv venv && uv sync --all-extras
+RUN uv venv ${VIRTUAL_ENV} && uv sync --all-extras
 
 # ソースはここでコピー（依存レイヤーのキャッシュを活かすため遅らせる）
 COPY . .

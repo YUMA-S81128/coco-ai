@@ -28,7 +28,7 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
 
 ## 🚀 クイックスタート
 
-このプロジェクトをローカルで実行するための基本的な手順です。
+このプロジェクトをローカルで開発・実行するための基本的な手順です。
 
 1.  **リポジトリのクローン**:
 
@@ -38,7 +38,7 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
     ```
 
 2.  **Firebase 接続情報の設定 (フロントエンド)**:
-    Flutter Web アプリの Firebase 設定は、ビルド時に環境変数として渡されます。プロジェクトのルートディレクトリに `config/dev.json` というファイルを作成し、Firebase コンソールから取得した Web アプリの設定を以下の形式で貼り付けます。
+    Flutter Web アプリの Firebase 設定は、ローカルでの実行時に環境変数として渡されます。プロジェクトのルートディレクトリに `config/dev.json` というファイルを作成し、Firebase コンソールから取得した Web アプリの設定を以下の形式で貼り付けます。
 
     **`config/dev.json` の内容:**
 
@@ -53,10 +53,22 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
     }
     ```
 
-    このファイルは、`flutter run` コマンド実行時に `--dart-define-from-file` フラグで読み込まれます。詳細は `app/README.md` を参照してください。
+    このファイルは、`flutter run` コマンド実行時に `--dart-define-from-file` フラグで読み込まれます。
 
 3.  **各サービスのセットアップ**:
     `app`, `backend`, `functions` の各ディレクトリに移動し、それぞれの `README.md` に記載されている手順に従って、依存関係のインストールと仮想環境の構築を行ってください。
+
+## ☁️ デプロイ
+
+このプロジェクトのすべてのコンポーネント（Firebase Rules, Cloud Functions, Backend Service, Frontend App）は、**Cloud Build** を使用して一元的にデプロイされます。
+
+デプロイは、リポジトリのルートにある `cloudbuild.yaml` に定義されたパイプラインに従って実行されます。変更を Git リポジトリのメインブランチにプッシュすると、Cloud Build トリガーが自動的に起動し、インフラ全体がビルド・デプロイされます。
+
+手動でデプロイを実行する必要がある場合は、以下の `gcloud` コマンドを使用します。
+
+```bash
+gcloud builds submit --config cloudbuild.yaml .
+```
 
 ## 📂 ディレクトリ構成
 

@@ -107,29 +107,12 @@ uvicorn main:app --reload
 ## デプロイ
 
 このサービスは、コンテナとして Google Cloud Run にデプロイされるように設計されています。
+デプロイは、プロジェクトルートにある `cloudbuild.yaml` の定義に基づいて、Cloud Build によって自動的に行われます。変更を Git リポジトリにプッシュすると、Cloud Build がトリガーされ、以下の処理が実行されます。
 
-1.  **Docker コンテナのビルド:**
-    `setup_infra.sh` で作成した Artifact Registry リポジトリにコンテナイメージをビルドしてプッシュします。
+1.  Docker イメージのビルドと Artifact Registry へのプッシュ。
+2.  新しいイメージを使用した Cloud Run サービスへのデプロイ。
+3.  Eventarc トリガーの構成。
 
-    ```bash
-    # YOUR_REGION は asia-northeast1 など
-    gcloud builds submit --tag YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/coco-ai/coco-ai-backend
-    ```
+環境変数は `cloudbuild.yaml` 内で `--set-env-vars` フラグを通じて設定されます。手動でデプロイする必要がある場合は、`gcloud run deploy` コマンドに `--env-file .env` を使用することもできます。
 
-    `YOUR_REGION` と `YOUR_PROJECT_ID` を実際の値に置き換えてください。
-
-2.  **Cloud Run へのデプロイ:**
-    ```bash
-    gcloud run deploy coco-ai-backend \
-      --image YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/coco-ai/coco-ai-backend \
-      --platform managed \
-      --region YOUR_REGION \
-      --service-account coco-ai-backend-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-      --no-allow-unauthenticated
-    ```
-    - `YOUR_PROJECT_ID` と `YOUR_REGION` を実際の値に置き換えてください。
-    - `deploy.sh` スクリプトは、環境変数を `--set-env-vars` フラグで直接渡します。ローカルから手動でデプロイする場合は、`--env-file .env` を使用することもできます。
-    - **セキュリティに関する注意**: 上記のコマンド例には含まれていませんが、本番環境では `--allow-unauthenticated` フラグを使用せず、認証を有効にすることを強く推奨します。Eventarc トリガーに Cloud Run サービスを呼び出す権限 (`roles/run.invoker`) を持つサービスアカウントを関連付けることで、セキュアな呼び出しが可能です。
-    - デプロイする前に、`.env` ファイルが正しく設定されていることを確認してください。
-
-デプロイ後、指定された Cloud Storage バケットにファイルがアップロードされたときにこのサービスを呼び出すように Eventarc トリガーを設定します。
+**セキュリティに関する注意**: デプロイ構成では `--no-allow-unauthenticated` フラグが使用され、認証されていないリクエストは許可されません。Eventarc トリガーには、Cloud Run サービスを呼び出す権限 (`roles/run.invoker`) を持つ専用のサービスアカウントが関連付けられており、セキュアな呼び出しが保証されています。

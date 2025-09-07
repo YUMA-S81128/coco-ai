@@ -84,11 +84,8 @@ firebase emulators:start
 
 ### 4. デプロイ
 
-この Function をデプロイするには、プロジェクトのルートディレクトリで以下のコマンドを実行します。
-
-```bash
-firebase deploy --only functions
-```
+この Function は、プロジェクトルートの `cloudbuild.yaml` を介して、Cloud Build によって自動的にデプロイされます。
+デプロイプロセスの全体像については、プロジェクトルートの `README.md` を参照してください。
 
 ## ⚙️ 設定
 

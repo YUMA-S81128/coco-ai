@@ -103,16 +103,9 @@ firebase emulators:start
 
 ### 4. デプロイ
 
-アプリケーションを Firebase Hosting にデプロイします。
+このアプリケーションは、プロジェクトルートの `cloudbuild.yaml` を介して、Cloud Build によって自動的に Firebase Hosting にデプロイされます。
 
-1.  **Web 用のビルド**: `app` ディレクトリで以下のコマンドを実行し、デプロイ用のファイルを生成します。
-    ```bash
-    flutter build web
-    ```
-2.  **Hosting へのデプロイ**: プロジェクトのルートディレクトリで以下のコマンドを実行します。
-    ```bash
-    firebase deploy --only hosting
-    ```
+デプロイプロセスの全体像については、プロジェクトルートの `README.md` を参照してください。
 
 ### 5. 依存関係の更新
 
