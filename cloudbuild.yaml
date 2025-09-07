@@ -11,12 +11,12 @@ steps:
       - -c
       - |
         # プロジェクトのWebアプリIDを取得 (最初のWebアプリを使用)
-        WEB_APP_ID=$(gcloud firebase apps web list --project=${PROJECT_ID} --format="value(appId)" | head -n 1)
-        if [ -z "$WEB_APP_ID" ]; then
+        WEB_APP_ID=$$(gcloud firebase apps web list --project=${PROJECT_ID} --format="value(appId)" | head -n 1)
+        if [ -z "$$WEB_APP_ID" ]; then
           echo "エラー: Firebase Web Appが見つかりません。FirebaseコンソールでWebアプリを追加するか、setup_infra.shを実行してください。"
           exit 1
         fi
-        echo "Firebase Web App ID: $${WEB_APP_ID}"
+        echo "Firebase Web App ID: $$WEB_APP_ID"
 
         # Webアプリの設定を取得
         FIREBASE_CONFIG_JSON=$$(gcloud firebase apps web describe $${WEB_APP_ID} --project=${PROJECT_ID} --format="json")
