@@ -1,5 +1,36 @@
 # cloudbuild.yml
 steps:
+  # --- ステップ0: Firebase Web App 設定の取得 ---
+  # Flutter Webアプリのビルドに必要なFirebase設定を取得します。
+  # このステップは、Firebase Web Appが既に存在することを前提とします。
+  # もし存在しない場合は、setup_infra.shでgcloud firebase apps web createを実行してください。
+  - name: "gcr.io/cloud-builders/gcloud:latest"
+    id: "Get Firebase Web App Config"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        # プロジェクトのWebアプリIDを取得 (最初のWebアプリを使用)
+        WEB_APP_ID=$(gcloud firebase apps web list --project=${PROJECT_ID} --format="value(appId)" | head -n 1)
+        if [ -z "$WEB_APP_ID" ]; then
+          echo "エラー: Firebase Web Appが見つかりません。FirebaseコンソールでWebアプリを追加するか、setup_infra.shを実行してください。"
+          exit 1
+        fi
+        echo "Firebase Web App ID: ${WEB_APP_ID}"
+
+        # Webアプリの設定を取得
+        FIREBASE_CONFIG_JSON=$(gcloud firebase apps web describe ${WEB_APP_ID} --project=${PROJECT_ID} --format="json")
+
+        # 必要な値を抽出し、環境変数として一時ファイルに書き出す
+        # これらの変数は次のステップで --dart-define として渡されます
+        echo "export FIREBASE_API_KEY=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.apiKey')" >> /workspace/firebase_env.sh
+        echo "export FIREBASE_APP_ID=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.appId')" >> /workspace/firebase_env.sh
+        echo "export FIREBASE_MESSAGING_SENDER_ID=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.messagingSenderId')" >> /workspace/firebase_env.sh
+        echo "export FIREBASE_PROJECT_ID=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.projectId')" >> /workspace/firebase_env.sh
+        echo "export FIREBASE_STORAGE_BUCKET=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.storageBucket')" >> /workspace/firebase_env.sh
+        echo "export FIREBASE_AUTH_DOMAIN=$(echo "${FIREBASE_CONFIG_JSON}" | jq -r '.authDomain')" >> /workspace/firebase_env.sh
+        echo "Firebase config variables written to /workspace/firebase_env.sh"
+
   # --- ステップ1: フロントエンドのビルド ---
   - name: "ghcr.io/cirruslabs/flutter:3.35.3"
     id: "Build Frontend"
@@ -10,8 +41,16 @@ steps:
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
           echo ">>> Building Flutter web app..."
           cd app
+          # 前のステップで作成した環境変数を読み込む
+          source /workspace/firebase_env.sh
           flutter pub get
-          flutter build web --release
+          flutter build web --release \
+            --dart-define="FIREBASE_API_KEY=${FIREBASE_API_KEY}" \
+            --dart-define="FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
+            --dart-define="FIREBASE_MESSAGING_SENDER_ID=${FIREBASE_MESSAGING_SENDER_ID}" \
+            --dart-define="FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}" \
+            --dart-define="FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}" \
+            --dart-define="FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN}"
         else
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
