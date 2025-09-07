@@ -1,6 +1,22 @@
+# cloudbuild.yml — 修正版（コメント付き）
 steps:
-  # --- ステップ1: フロントエンドのビルド (app または all の場合のみ実行) ---
-  # Flutterのビルドには、公式に推奨されているGitHub Container Registryのイメージを使用します。
+  # --- ステップ0: デバッグ（オプション）: ビルドSAから Firebase プロジェクト情報を確認する ---
+  # NOTE: 失敗している場合はここで Cloud Build 実行 SA から見た projects API の応答をログに残せます。
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Debug: Firebase project metadata (build-SA view)"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        echo "=== Debug: firebase project metadata (as Build SA) ==="
+        gcloud --version || true
+        TOKEN=$(gcloud auth print-access-token)
+        echo "Calling Firebase projects.get..."
+        curl -s -H "Authorization: Bearer ${TOKEN}" "https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}" | head -c 2000 || true
+        echo "Calling Firebasestorage buckets list..."
+        curl -s -H "Authorization: Bearer ${TOKEN}" "https://firebasestorage.googleapis.com/v1/projects/${PROJECT_ID}/buckets" | head -c 2000 || true
+
+  # --- ステップ1: フロントエンドのビルド (app) ---
   - name: "ghcr.io/cirruslabs/flutter:stable"
     id: "Build Frontend"
     entrypoint: "bash"
@@ -16,41 +32,62 @@ steps:
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
 
-  # --- ステップ2: Firebase関連のデプロイ (Rules, Functions) ---
-  # Firebase公式のビルダーイメージを使用します。
+  # --- ステップ2: Firebase Rulesのデプロイ ---
   - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
-    id: "Deploy Firebase Resources"
+    id: "Deploy Firebase Rules"
     entrypoint: "bash"
     args:
       - -c
       - |
-        # Rulesのデプロイ
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "rules" ]]; then
+          echo ">>> Firebase CLI version:"
+          firebase --version || true
           echo ">>> Deploying Firestore and Storage rules..."
           firebase deploy --only firestore:rules,storage --project=${PROJECT_ID}
+        else
+          echo ">>> Skipping Firebase Rules deployment for target: ${_DEPLOY_TARGET}"
         fi
-        # Functionsのデプロイ (v2)
+
+  # --- ステップ3: Cloud Functions Gen2 のデプロイ ---
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: "Deploy Cloud Functions"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "functions" ]]; then
           echo ">>> Deploying Cloud Functions v2..."
-          cd functions
-
-          # v2 デプロイ (環境変数は Cloud Run の仕組みで渡す)
+          gcloud --version
+          # 注意: gcloud functions deploy では関数名を直接指定します（firebase の --only 構文ではない）
           gcloud functions deploy ${_FUNCTION_NAME} \
             --gen2 \
             --runtime=python313 \
             --region=${_REGION} \
-            --source=functions \
+            --source=./functions \
             --entry-point=generate_signed_url \
             --trigger-http \
             --project=${PROJECT_ID} \
             --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}" \
-            --debug
-
-          cd ..
+        else
+          echo ">>> Skipping Cloud Functions deployment for target: ${_DEPLOY_TARGET}"
         fi
 
-  # --- ステップ3: バックエンドのビルドとCloud Runへのデプロイ ---
-  # gcloud公式のビルダーイメージを使用します。
+  # --- ステップ4: BackendイメージをビルドしてArtifact Registryへプッシュ ---
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Build backend image"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" ]]; then
+          IMAGE_TAG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_BACKEND_SERVICE_NAME}:${SHORT_SHA}"
+          echo ">>> Building image ${IMAGE_TAG}"
+          docker build -t "$${IMAGE_TAG}" backend
+          echo ">>> Pushing image ${IMAGE_TAG}"
+          docker push "$${IMAGE_TAG}"
+        fi
+
+  # --- ステップ5: Cloud Runへデプロイ（gcloud） ---
   - name: "gcr.io/cloud-builders/gcloud"
     id: "Deploy Backend to Cloud Run"
     entrypoint: "bash"
@@ -58,23 +95,19 @@ steps:
       - -c
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" ]]; then
-          echo ">>> Building and deploying backend service..."
           IMAGE_TAG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REGISTRY_REPO}/${_BACKEND_SERVICE_NAME}:${SHORT_SHA}"
-          # コンテナイメージをビルドしてArtifact Registryにプッシュ
-          gcloud builds submit backend --tag "$${IMAGE_TAG}" --quiet --project=${PROJECT_ID}
-          # Cloud Runにデプロイ
+          echo ">>> Deploying to Cloud Run: ${_BACKEND_SERVICE_NAME}"
           gcloud run deploy ${_BACKEND_SERVICE_NAME} \
             --image "$${IMAGE_TAG}" \
             --platform managed \
             --region ${_REGION} \
             --service-account ${_BACKEND_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
             --no-allow-unauthenticated \
-            --set-env-vars="^##^GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}##AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}##PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}##GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}##FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}##SESSION_SERVICE=vertex" \
+            --set-env-vars="^##^GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID}##AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET}##PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET}##GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET}##FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}##SESSION_SERVICE=inmemory" \
             --project=${PROJECT_ID}
         fi
 
-  # --- ステップ4: Eventarcトリガーの設定 ---
-  # gcloud公式のビルダーイメージを使用します。
+  # --- ステップ6: Eventarc トリガーの設定（gcloud） ---
   - name: "gcr.io/cloud-builders/gcloud"
     id: "Configure Eventarc Trigger"
     entrypoint: "bash"
@@ -83,12 +116,10 @@ steps:
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" || "${_DEPLOY_TARGET}" == "trigger" ]]; then
           echo ">>> Configuring Eventarc trigger..."
-          # Cloud Runサービスを呼び出す権限をトリガー用SAに付与
           gcloud run services add-iam-policy-binding ${_BACKEND_SERVICE_NAME} \
             --region=${_REGION} \
             --member="serviceAccount:${_TRIGGER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --role="roles/run.invoker" --project=${PROJECT_ID} > /dev/null
-          # トリガーが存在しない場合のみ作成
           if ! gcloud eventarc triggers describe ${_TRIGGER_NAME} --location=${_REGION} --project=${PROJECT_ID} >/dev/null 2>&1; then
             echo "Trigger ${_TRIGGER_NAME} not found. Creating..."
             gcloud eventarc triggers create ${_TRIGGER_NAME} \
@@ -104,30 +135,28 @@ steps:
           fi
         fi
 
-  # --- ステップ5: フロントエンドのFirebase Hostingへのデプロイ ---
-  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
+  # --- ステップ7: Firebase Hosting（frontend）デプロイ ---
+  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:latest"
     id: "Deploy Frontend to Hosting"
     entrypoint: "bash"
     args:
       - -c
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "app" ]]; then
+          echo ">>> Firebase CLI version:"
+          firebase --version || true
           echo ">>> Deploying to Firebase Hosting..."
           firebase deploy --only hosting --project=${PROJECT_ID}
         fi
 
-# ビルドタイムアウトを20分に設定
+# ビルドタイムアウト
 timeout: 1200s
 
-# ログの保存先をCloud Loggingのみに設定
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# 置換変数の定義。トリガー実行時に上書き可能。
 substitutions:
-  # デプロイ対象 (all, app, backend, functions, rules, trigger)
   _DEPLOY_TARGET: "all"
-  # config.shで定義されている変数を渡す
   _REGION: "asia-northeast1"
   _BACKEND_SERVICE_NAME: "coco-ai-backend"
   _FUNCTION_NAME: "generate_signed_url"
@@ -136,7 +165,6 @@ substitutions:
   _TRIGGER_NAME: "trigger-coco-ai-storage"
   _FIRESTORE_COLLECTION: "jobs"
   _ARTIFACT_REGISTRY_REPO: "coco-ai"
-  # .envで管理していた変数を渡す
   _AUDIO_UPLOAD_BUCKET: "coco-ai-input-audio"
   _PROCESSED_AUDIO_BUCKET: "coco-ai-output-narrations"
   _GENERATED_IMAGE_BUCKET: "coco-ai-output-images"
