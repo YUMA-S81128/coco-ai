@@ -102,6 +102,37 @@ gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/storage.objectCreator" >/dev/null
 
+echo "--- Eventarcトリガー用サービスアカウントに必要なIAMロールを付与中 ---"
+# Eventarcがこのサービスアカウントとしてイベントを中継するために必要
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/eventarc.eventReceiver" >/dev/null
+
+# EventarcトリガーがCloud Runサービスを呼び出すために必要
+echo "Eventarcトリガー用サービスアカウントにCloud Run起動者のロールを付与中..."
+gcloud run services add-iam-policy-binding ${BACKEND_SERVICE_NAME} \
+  --region=${REGION} \
+  --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/run.invoker" \
+  --platform=managed >/dev/null
+
+echo "--- Eventarc Service Agentに必要な権限を付与中 ---"
+# プロジェクト番号を取得
+PROJECT_NUMBER=$(gcloud projects describe ${GOOGLE_CLOUD_PROJECT_ID} --format="value(projectNumber)")
+EVENTARC_SA="service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com"
+
+echo "Eventarc Service Agent (${EVENTARC_SA}) にロールを付与中..."
+
+# EventarcがPub/Subトピックにイベントを公開するために必要
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+    --member="serviceAccount:${EVENTARC_SA}" \
+    --role="roles/pubsub.publisher" >/dev/null
+
+# EventarcがCloud Storageバケットの通知設定を管理するために必要
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+    --member="serviceAccount:${EVENTARC_SA}" \
+    --role="roles/storage.admin" >/dev/null
+
 echo "--- Cloud Build サービスアカウントに必要なIAMロールを付与中 ---"
 CLOUDBUILD_ROLES=(
   "roles/logging.logWriter"           # ログ書き込み

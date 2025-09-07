@@ -99,10 +99,6 @@ steps:
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" || "${_DEPLOY_TARGET}" == "trigger" ]]; then
           echo ">>> Configuring Eventarc trigger..."
-          gcloud run services add-iam-policy-binding ${_BACKEND_SERVICE_NAME} \
-            --region=${_REGION} \
-            --member="serviceAccount:${_TRIGGER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --role="roles/run.invoker" --project=${PROJECT_ID} > /dev/null
           if ! gcloud eventarc triggers describe ${_TRIGGER_NAME} --location=${_REGION} --project=${PROJECT_ID} >/dev/null 2>&1; then
             echo "Trigger ${_TRIGGER_NAME} not found. Creating..."
             gcloud eventarc triggers create ${_TRIGGER_NAME} \
