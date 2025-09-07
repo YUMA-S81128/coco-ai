@@ -13,6 +13,8 @@ dependencies = [
     "cloudevents",
     # 型チェックとデータバリデーションのために必要
     "pydantic",
+    # ASGIサーバー (FastAPIの実行に必要)
+    "uvicorn[standard]",
     # 型安全な設定管理のために必要
     "pydantic-settings",
     # agents/services で使用されるGoogle Cloudサービスの直接的な依存関係
@@ -28,9 +30,6 @@ dependencies = [
 dev = [
     # リンターとフォーマッターを兼ねる
     "ruff",
-
-    # ASGIサーバー (FastAPIのローカル実行に必要)
-    "uvicorn[standard]",
 ]
 
 [tool.setuptools]

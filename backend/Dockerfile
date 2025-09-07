@@ -1,7 +1,7 @@
 # -----------------------------
 # Builder stage
 # -----------------------------
-FROM python:3.13-slim AS builder
+FROM python:3.13.7-slim-trixie AS builder
 ARG UV_VERSION=0.8.13
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -34,7 +34,7 @@ RUN uv pip install --no-cache-dir --no-deps -e .
 # -----------------------------
 # Final stage
 # -----------------------------
-FROM python:3.13-slim AS final
+FROM python:3.13.7-slim-trixie AS final
 ENV PYTHONUNBUFFERED=1 \
     APP_HOME=/app \
     PORT=8080 \
