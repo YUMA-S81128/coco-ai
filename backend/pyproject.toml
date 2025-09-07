@@ -3,10 +3,10 @@ name = "coco-ai-backend"
 version = "0.1.0"
 description = "Backend for Coco-Ai using Google ADK"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "~=3.13"
 dependencies = [
     # エージェントグラフを構築するためのコアフレームワーク
-    "google-adk>=1.12.0",
+    "google-adk~=1.12.0",
     # Webフレームワーク
     "fastapi",
     # EventarcからのCloudEventsを処理するために必要
@@ -32,3 +32,9 @@ dev = [
     # ASGIサーバー (FastAPIのローカル実行に必要)
     "uvicorn[standard]",
 ]
+
+[tool.setuptools]
+# パッケージとして含めるディレクトリを明示的に指定
+packages = ["agents", "models", "services"]
+# パッケージとして含めるトップレベルのPythonモジュールを明示的に指定
+py_modules = ["main", "callback", "config"]

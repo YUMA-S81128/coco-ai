@@ -44,7 +44,9 @@ local.env
 # -----------------
 tests/
 docs/
+# pyproject.toml で参照される README.md 以外は除外します
 *.md
+!README.md
 
 # -----------------
 # Cache / Temp
