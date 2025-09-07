@@ -114,6 +114,7 @@ CLOUDBUILD_ROLES=(
   "roles/firebasehosting.admin"       # Firebase Hosting のデプロイ
   "roles/artifactregistry.writer"     # Artifact Registryへのイメージ書き込み
   "roles/firebasestorage.admin"
+  "roles/storage.objectAdmin"
 )
 
 echo "Cloud Build サービスアカウント (${CLOUDBUILD_SA_NAME}) にロールを付与中..."
