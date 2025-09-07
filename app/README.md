@@ -92,10 +92,12 @@ firebase emulators:start
 
 デバッグモードで起動したアプリは、`lib/main.dart` の設定により自動的にローカルのエミュレータに接続します。
 
-    ```bash
-    # ../config/dev.json にFirebaseの接続情報が保存されていると仮定
-    flutter run -d chrome --dart-define-from-file=../config/dev.json
-    ```
+```bash
+# ../config/dev.json にFirebaseの接続情報が保存されていると仮定
+flutter run -d chrome --dart-define-from-file=../config/dev.json
+```
+
+    `--dart-define-from-file` で渡された設定により、アプリはどの Firebase プロジェクトに属しているかを認識し、その上でローカルのエミュレータに接続します。
 
 ホットリロード機能により、コードを保存するだけで変更が即座にアプリに反映されます。
 

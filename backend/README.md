@@ -113,6 +113,6 @@ uvicorn main:app --reload
 2.  新しいイメージを使用した Cloud Run サービスへのデプロイ。
 3.  Eventarc トリガーの構成。
 
-環境変数は `cloudbuild.yaml` 内で `--set-env-vars` フラグを通じて設定されます。手動でデプロイする必要がある場合は、`gcloud run deploy` コマンドに `--env-file .env` を使用することもできます。
+環境変数は `cloudbuild.yaml` 内で `--set-env-vars` フラグを通じて設定されます。
 
 **セキュリティに関する注意**: デプロイ構成では `--no-allow-unauthenticated` フラグが使用され、認証されていないリクエストは許可されません。Eventarc トリガーには、Cloud Run サービスを呼び出す権限 (`roles/run.invoker`) を持つ専用のサービスアカウントが関連付けられており、セキュアな呼び出しが保証されています。

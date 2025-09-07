@@ -39,21 +39,22 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
 
 2.  **Firebase 接続情報の設定 (フロントエンド)**:
     Flutter Web アプリの Firebase 設定は、ローカルでの実行時に環境変数として渡されます。プロジェクトのルートディレクトリに `config/dev.json` というファイルを作成し、Firebase コンソールから取得した Web アプリの設定を以下の形式で貼り付けます。
+    `config/dev.example.json` をコピーして作成してください。
 
     **`config/dev.json` の内容:**
 
     ```json
     {
-      "FIREBASE_API_KEY": "AIzaSy...",
+      "FIREBASE_API_KEY": "your-api-key",
       "FIREBASE_AUTH_DOMAIN": "your-project-id.firebaseapp.com",
       "FIREBASE_PROJECT_ID": "your-project-id",
-      "FIREBASE_STORAGE_BUCKET": "your-project-id.appspot.com",
+      "FIREBASE_STORAGE_BUCKET": "your-project-id.firebasestorage.app",
       "FIREBASE_MESSAGING_SENDER_ID": "1234567890",
       "FIREBASE_APP_ID": "1:1234567890:web:abcdef1234567890"
     }
     ```
 
-    このファイルは、`flutter run` コマンド実行時に `--dart-define-from-file` フラグで読み込まれます。
+    このファイルは、`flutter run` コマンド実行時に `--dart-define-from-file` フラグで読み込まれます。Firebase Emulator Suite はバックエンドサービス（Functions, Firestore など）をローカルで模倣しますが、Flutter アプリが Firebase プロジェクト自体を認識し、接続するためには、これらの設定情報が依然として必要です。
 
 3.  **各サービスのセットアップ**:
     `app`, `backend`, `functions` の各ディレクトリに移動し、それぞれの `README.md` に記載されている手順に従って、依存関係のインストールと仮想環境の構築を行ってください。
@@ -64,11 +65,26 @@ Flutter (Web)製のフロントエンドと、Cloud Run 上で動作する Pytho
 
 デプロイは、リポジトリのルートにある `cloudbuild.yaml` に定義されたパイプラインに従って実行されます。変更を Git リポジトリのメインブランチにプッシュすると、Cloud Build トリガーが自動的に起動し、インフラ全体がビルド・デプロイされます。
 
-手動でデプロイを実行する必要がある場合は、以下の `gcloud` コマンドを使用します。
+### 手動でのデプロイ実行
+
+手動で Cloud Build をトリガーする場合は、以下の `gcloud` コマンドを使用します。
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml .
 ```
+
+### 部分的なデプロイ
+`cloudbuild.yaml` の `_DEPLOY_TARGET` 置換変数を指定することで、特定のコンポーネントのみをデプロイできます。これは、特定のサービスのみを更新したい場合に便利です。
+
+```bash
+# フロントエンドアプリ (Flutter Web) のみデプロイ
+gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY_TARGET=app .
+
+# バックエンド (Cloud Run) と Eventarc トリガーのみデプロイ
+gcloud builds submit --config cloudbuild.yaml --substitutions=_DEPLOY_TARGET=backend .
+```
+
+指定可能なターゲットは `app`, `rules`, `functions`, `backend`, `trigger` です。デフォルトは `all` です。
 
 ## 📂 ディレクトリ構成
 
