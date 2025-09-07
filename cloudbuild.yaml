@@ -16,6 +16,17 @@ steps:
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
 
+  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
+    id: "Debug Firebase CLI"
+    entrypoint: "bash"
+    args:
+      - -c
+      - |
+        echo "firebase --version"
+        firebase --version || true
+        echo "firebase deploy --help (first 200 lines)"
+        firebase deploy --help | head -n 200 || true
+
   # --- ステップ2: Firebase関連のデプロイ (Rules, Functions) ---
   # Firebase公式のビルダーイメージを使用します。
   - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
@@ -38,7 +49,8 @@ steps:
           firebase deploy --only "functions:${_FUNCTION_NAME}" \
             --gen2 \
             --project=${PROJECT_ID} \
-            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}"
+            --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}" \
+            --debug
 
           cd ..
         fi
