@@ -23,7 +23,8 @@ COPY pyproject.toml uv.lock ./
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
 # create venv and install deps according to lock
-RUN uv venv ${VIRTUAL_ENV} && uv sync --all-extras
+# uv.lock に基づいて本番依存関係のみをインストールします
+RUN uv venv ${VIRTUAL_ENV} && uv sync
 
 # ソースはここでコピー（依存レイヤーのキャッシュを活かすため遅らせる）
 COPY . .
