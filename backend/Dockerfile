@@ -31,8 +31,8 @@ RUN uv venv ${VIRTUAL_ENV} \
 # ソースをコピー
 COPY . .
 
-# アプリ本体を venv の pip でインストール（editable）。依存は既に同期済みなので --no-deps は不要
-RUN /opt/venv/bin/pip install --no-cache-dir -e .
+# アプリ本体を venv にインストール（editable）。依存は既に同期済みなので --no-deps を指定
+RUN uv pip install --no-cache-dir --no-deps -e .
 
 # -----------------------------
 # Final stage
