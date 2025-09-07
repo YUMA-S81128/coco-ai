@@ -1,6 +1,6 @@
 # cloudbuild.yml
 steps:
-  # --- ステップ1: フロントエンドのビルド (app) ---
+  # --- ステップ1: フロントエンドのビルド ---
   - name: "ghcr.io/cirruslabs/flutter:3.35.3"
     id: "Build Frontend"
     entrypoint: "bash"
