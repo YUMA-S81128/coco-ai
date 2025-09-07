@@ -22,6 +22,11 @@ echo "--- プロジェクトを設定中 ---"
 source "$(dirname "$0")/config.sh"
 gcloud config set project ${GOOGLE_CLOUD_PROJECT_ID}
 
+echo "--- 必要なAPIを有効化中 ---"
+# Secret Manager API を有効化
+gcloud services enable secretmanager.googleapis.com \
+  firebase.googleapis.com
+
 echo "--- Cloud Storage バケットを作成中 ---"
 # Firebaseコンソールでの管理やセキュリティルールを適用したい場合は、
 # 作成後にFirebaseコンソールからこのバケットを手動でインポートしてください。
@@ -35,6 +40,28 @@ for BUCKET in ${AUDIO_UPLOAD_BUCKET} ${PROCESSED_AUDIO_BUCKET} ${GENERATED_IMAGE
       --location=${REGION} \
       --uniform-bucket-level-access \
       --public-access-prevention
+  fi
+done
+
+echo "--- Secret Managerのシークレットを確認・作成中 ---"
+# Cloud Buildでフロントエンドのビルドに必要なFirebase設定キーのリスト
+# これらのキーに対応するシークレットを作成します。
+# 値は後で手動でコンソールから設定してください。
+SECRET_KEYS=(
+  "FIREBASE_API_KEY"
+  "FIREBASE_APP_ID"
+  "FIREBASE_MESSAGING_SENDER_ID"
+  "FIREBASE_PROJECT_ID"
+  "FIREBASE_STORAGE_BUCKET"
+  "FIREBASE_AUTH_DOMAIN"
+)
+
+for SECRET_NAME in "${SECRET_KEYS[@]}"; do
+  if gcloud secrets describe ${SECRET_NAME} >/dev/null 2>&1; then
+    echo "Secret [${SECRET_NAME}] は既に存在します。作成をスキップします。"
+  else
+    echo "Secret [${SECRET_NAME}] を作成中..."
+    gcloud secrets create ${SECRET_NAME} --replication-policy="automatic" >/dev/null
   fi
 done
 
@@ -163,6 +190,7 @@ CLOUDBUILD_ROLES=(
   "roles/firebase.viewer"             # Firebaseプロジェクト情報へのアクセス(Hostingデプロイ時に必要)
   "roles/firebasestorage.admin"       # Firebase Storage の管理
   "roles/storage.admin"               # Cloud Storage の管理
+  "roles/secretmanager.secretAccessor" # Secret Managerから設定を読み込む
 )
 
 echo "Cloud Build サービスアカウント (${CLOUDBUILD_SA_NAME}) にロールを付与中..."
