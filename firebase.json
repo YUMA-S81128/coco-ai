@@ -21,11 +21,7 @@
   ],
   "hosting": {
     "public": "app/build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
         "source": "**",
@@ -33,9 +29,20 @@
       }
     ]
   },
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    {
+      "bucket": "coco-ai-input-audio",
+      "rules": "storage.rules"
+    },
+    {
+      "bucket": "coco-ai-output-narrations",
+      "rules": "storage.rules"
+    },
+    {
+      "bucket": "coco-ai-output-images",
+      "rules": "storage.rules"
+    }
+  ],
   "emulators": {
     "functions": {
       "port": 5001

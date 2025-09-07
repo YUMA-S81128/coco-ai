@@ -1,21 +1,7 @@
-# cloudbuild.yml — 修正版（TOKEN のテンプレート衝突を回避、IMAGE_TAG をエスケープ）
+# cloudbuild.yml
 steps:
-  # --- ステップ0: デバッグ（オプション）: Build SA からの Firebase API 応答を確認 ---
-  - name: "gcr.io/cloud-builders/gcloud"
-    id: "Debug: Firebase project metadata (build-SA view)"
-    entrypoint: "bash"
-    args:
-      - -c
-      - |
-        echo "=== Debug: firebase project metadata (as Build SA) ==="
-        gcloud --version || true
-        echo "Calling Firebase projects.get..."
-        curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://firebase.googleapis.com/v1beta1/projects/${PROJECT_ID}" | head -c 2000 || true
-        echo "Calling Firebasestorage buckets list..."
-        curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://firebasestorage.googleapis.com/v1/projects/${PROJECT_ID}/buckets" | head -c 2000 || true
-
   # --- ステップ1: フロントエンドのビルド (app) ---
-  - name: "ghcr.io/cirruslabs/flutter:stable"
+  - name: "ghcr.io/cirruslabs/flutter:3.35.3"
     id: "Build Frontend"
     entrypoint: "bash"
     args:
@@ -47,7 +33,7 @@ steps:
         fi
 
   # --- ステップ3: Cloud Functions Gen2 のデプロイ ---
-  - name: "gcr.io/cloud-builders/gcloud"
+  - name: "gcr.io/cloud-builders/gcloud:latest"
     id: "Deploy Cloud Functions"
     entrypoint: "bash"
     args:
@@ -70,7 +56,7 @@ steps:
         fi
 
   # --- ステップ4: Backend イメージをビルドして Artifact Registry へプッシュ ---
-  - name: "gcr.io/cloud-builders/docker"
+  - name: "gcr.io/cloud-builders/docker:20.10.24"
     id: "Build backend image"
     entrypoint: "bash"
     args:
@@ -85,7 +71,7 @@ steps:
         fi
 
   # --- ステップ5: Cloud Run へデプロイ ---
-  - name: "gcr.io/cloud-builders/gcloud"
+  - name: "gcr.io/cloud-builders/gcloud:latest"
     id: "Deploy Backend to Cloud Run"
     entrypoint: "bash"
     args:
@@ -105,7 +91,7 @@ steps:
         fi
 
   # --- ステップ6: Eventarc トリガーの設定（gcloud） ---
-  - name: "gcr.io/cloud-builders/gcloud"
+  - name: "gcr.io/cloud-builders/gcloud:latest"
     id: "Configure Eventarc Trigger"
     entrypoint: "bash"
     args:
@@ -133,7 +119,7 @@ steps:
         fi
 
   # --- ステップ7: Firebase Hosting（frontend）デプロイ ---
-  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:latest"
+  - name: "us-docker.pkg.dev/firebase-cli/us/firebase:14.15.2"
     id: "Deploy Frontend to Hosting"
     entrypoint: "bash"
     args:

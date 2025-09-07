@@ -32,9 +32,9 @@ dev = [
     # ASGIサーバー (FastAPIのローカル実行に必要)
     "uvicorn[standard]",
 ]
+# パッケージとして含めるトップレベルのPythonモジュールを明示的に指定
+py-modules = ["main", "callback", "config"]
 
 [tool.setuptools]
 # パッケージとして含めるディレクトリを明示的に指定
 packages = ["agents", "models", "services"]
-# パッケージとして含めるトップレベルのPythonモジュールを明示的に指定
-py_modules = ["main", "callback", "config"]
