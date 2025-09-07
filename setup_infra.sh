@@ -47,7 +47,16 @@ else
   gcloud artifacts repositories create ${ARTIFACT_REGISTRY_REPO} \
     --repository-format=docker --location=${REGION}
 fi
- 
+
+echo "--- Firestore データベースを確認・作成中 ---"
+# Firestoreデータベースが存在しない場合のみ作成します。
+if ! gcloud firestore databases describe --project=${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1; then
+  echo "Firestore データベースを Native モードで作成中 (location: ${REGION})..."
+  gcloud firestore databases create --location=${REGION} --project=${GOOGLE_CLOUD_PROJECT_ID}
+else
+  echo "Firestore データベースは既に存在します。"
+fi
+
 # --- サービスアカウントの作成 ---
 echo "--- サービスアカウントを確認・作成中 ---"
 
@@ -116,22 +125,29 @@ gcloud run services add-iam-policy-binding ${BACKEND_SERVICE_NAME} \
   --role="roles/run.invoker" \
   --platform=managed >/dev/null
 
-echo "--- Eventarc Service Agentに必要な権限を付与中 ---"
-# プロジェクト番号を取得
+echo "--- Google管理のサービスエージェントに必要な権限を付与中 ---"
+# プロジェクト番号を一度だけ取得して、後続の処理で再利用する
 PROJECT_NUMBER=$(gcloud projects describe ${GOOGLE_CLOUD_PROJECT_ID} --format="value(projectNumber)")
+
+# 1. Eventarc Service Agent
 EVENTARC_SA="service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com"
-
-echo "Eventarc Service Agent (${EVENTARC_SA}) にロールを付与中..."
-
-# EventarcがPub/Subトピックにイベントを公開するために必要
+echo "Eventarc Service Agent (${EVENTARC_SA}) にロールを付与..."
+# EventarcがPub/Subトピックにイベントを公開するため (pubsub.publisher)
+# Cloud Storageバケットの通知設定を管理するため (storage.admin)
 gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
     --member="serviceAccount:${EVENTARC_SA}" \
     --role="roles/pubsub.publisher" >/dev/null
-
-# EventarcがCloud Storageバケットの通知設定を管理するために必要
 gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
     --member="serviceAccount:${EVENTARC_SA}" \
     --role="roles/storage.admin" >/dev/null
+
+# 2. Cloud Storage Service Agent
+GCS_SA="service-${PROJECT_NUMBER}@gs-project-accounts.iam.gserviceaccount.com"
+echo "Cloud Storage Service Agent (${GCS_SA}) にロールを付与..."
+# Cloud StorageがPub/Subに通知を発行するため (pubsub.publisher)
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+    --member="serviceAccount:${GCS_SA}" \
+    --role="roles/pubsub.publisher" >/dev/null
 
 echo "--- Cloud Build サービスアカウントに必要なIAMロールを付与中 ---"
 CLOUDBUILD_ROLES=(
@@ -144,6 +160,7 @@ CLOUDBUILD_ROLES=(
   "roles/cloudfunctions.developer"    # Cloud Functions のデプロイ
   "roles/firebasehosting.admin"       # Firebase Hosting のデプロイ
   "roles/artifactregistry.writer"     # Artifact Registryへのイメージ書き込み
+  "roles/firebase.viewer"             # Firebaseプロジェクト情報へのアクセス(Hostingデプロイ時に必要)
   "roles/firebasestorage.admin"       # Firebase Storage の管理
   "roles/storage.admin"               # Cloud Storage の管理
 )
