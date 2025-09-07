@@ -6,7 +6,8 @@ ARG UV_VERSION=0.8.13
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
 
 # Build deps only in builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,21 +17,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 依存定義（ロックファイル）を先にコピーしてレイヤーを固定
-# ビルド前に必ず uv.lock を生成しておいてください
 COPY pyproject.toml uv.lock ./
 
-# uv をインストール
+# uv CLI をシステム側に入れる
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
-# create venv and install deps according to lock
-# uv.lock に基づいて本番依存関係のみをインストールします
-RUN uv venv ${VIRTUAL_ENV} && uv sync
+# UV_PROJECT_ENVIRONMENT / VIRTUAL_ENV を設定済みなので
+# uv venv と uv sync が /opt/venv を使ってインストール
+# --frozen で lockfile 準拠、--no-dev で dev deps を省く
+RUN uv venv ${VIRTUAL_ENV} \
+ && uv sync --frozen --no-dev
 
-# ソースはここでコピー（依存レイヤーのキャッシュを活かすため遅らせる）
+# ソースをコピー
 COPY . .
 
-# アプリ本体を venv にインストール（パッケージとして）
-RUN uv pip install --no-cache-dir --no-deps -e .
+# アプリ本体を venv の pip でインストール（editable）。依存は既に同期済みなので --no-deps は不要
+RUN /opt/venv/bin/pip install --no-cache-dir -e .
 
 # -----------------------------
 # Final stage
