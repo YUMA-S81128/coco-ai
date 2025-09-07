@@ -4,7 +4,9 @@
 FROM python:3.13-slim AS builder
 ARG UV_VERSION=0.8.13
 ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 # Build deps only in builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,19 +19,18 @@ WORKDIR /app
 # ビルド前に必ず uv.lock を生成しておいてください
 COPY pyproject.toml uv.lock ./
 
-# pip と uv を固定バージョンで入れる
-RUN python -m pip install --upgrade pip setuptools wheel && \
-    python -m pip install --no-cache-dir "uv==${UV_VERSION}"
+# uv をインストール
+RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
 # create venv and install deps according to lock
-# uv venv は venv を /opt/venv に作る想定
-RUN uv venv /opt/venv && /opt/venv/bin/uv sync --all-extras
+# VIRTUAL_ENV が設定されているため、uv は自動的に /opt/venv を使います
+RUN uv venv && uv sync --all-extras
 
 # ソースはここでコピー（依存レイヤーのキャッシュを活かすため遅らせる）
 COPY . .
 
 # アプリ本体を venv にインストール（パッケージとして）
-RUN /opt/venv/bin/pip install --no-cache-dir --no-deps -e .
+RUN uv pip install --no-cache-dir --no-deps -e .
 
 # -----------------------------
 # Final stage
