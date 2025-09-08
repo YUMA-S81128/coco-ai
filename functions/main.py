@@ -15,14 +15,13 @@ from config import get_settings
 settings = get_settings()
 
 
-# Initialize firebase admin app once (safe to call multiple times in some
-# runtimes; guard in case it's already initialized).
+# Firebase Admin Appを一度だけ初期化
 try:
     initialize_app()
 except Exception:
-    # If it's already initialized, continue. Logging at debug level to avoid
-    # noise in production logs.
-    logging.debug("Firebase app already initialized or initialization skipped.")
+    # すでに初期化済みの場合は続行
+    # デバッグレベルでロギング
+    logging.debug("Firebaseアプリはすでに初期化済みか、初期化がスキップされました。")
 
 options.set_global_options(region=options.SupportedRegion.ASIA_NORTHEAST1)
 
@@ -37,43 +36,42 @@ _db = firestore.Client()
 def generate_signed_url(
     req: https_fn.CallableRequest[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Generates a short-lived v4 signed URL for client-side uploads.
+    """クライアントサイドのアップロード用に、v4署名付きURLを生成。
 
-    The client must call this Callable function while authenticated (Firebase
-    Authentication). The returned signed URL requires the client to include
-    specific headers (Content-Type and x-goog-meta-*) when performing the
-    PUT upload.
+    クライアントは認証済み（Firebase Authentication）の状態でこのCallable関数を呼び出す必要がある。
+    返された署名付きURLでは、クライアントがPUTアップロードを実行する際にContent-Typeおよびx-goog-meta-*を含める必要がある。
 
-    Request payload (req.data):
+    リクエストペイロード (req.data):
       {
         "contentType": "audio/webm"
       }
 
-    Response:
+    レスポンス:
       {
         "jobId": "job-xxxxxxxx-xxxx-...",
         "signedUrl": "https://storage.googleapis.com/...",
-        "expiresIn": 900  # seconds
+        "expiresIn": 900,  # 秒
+        "requiredHeaders": { ... }
       }
     """
-    # ---------------------- Authentication check -------------------------
+    # ---------------------- 認証チェック -------------------------
     if req.auth is None or getattr(req.auth, "uid", None) is None:
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.UNAUTHENTICATED,
-            message="The function must be called while authenticated.",
+            message="この関数は認証された状態で呼び出す必要があります。",
         )
 
     user_id = req.auth.uid
 
-    # ---------------------- Server configuration -------------------------
+    # ---------------------- サーバー設定チェック -------------------------
     if not AUDIO_UPLOAD_BUCKET_NAME:
-        logging.error("Environment variable 'AUDIO_UPLOAD_BUCKET' is not set.")
+        logging.error("環境変数 'AUDIO_UPLOAD_BUCKET' が設定されていません。")
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
-            message="Server is not configured correctly.",
+            message="サーバーが正しく設定されていません。",
         )
 
-    # ---------------------- Request validation ---------------------------
+    # ---------------------- リクエスト検証 ---------------------------
     content_type = None
     if isinstance(req.data, dict):
         content_type = req.data.get("contentType")
@@ -81,37 +79,38 @@ def generate_signed_url(
     if not content_type or not isinstance(content_type, str):
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
-            message="The request must include a 'contentType' field.",
+            message="リクエストには'contentType'フィールドを含める必要があります。",
         )
 
     if not content_type.startswith("audio/"):
-        logging.warning("contentType does not look like audio/*: %s", content_type)
+        logging.warning("contentTypeがaudio/*形式ではないようです: %s", content_type)
 
-    # ---------------------- Job & path generation ------------------------
-    # Use a readable job-<uuid> id for traceability.
+    # ---------------------- ジョブIDとパスの生成 ------------------------
     job_uuid = str(uuid.uuid4())
     job_id = f"job-{job_uuid}"
 
-    # Build object path. We use a simple map to ensure consistent file
-    # extensions, as mimetypes.guess_extension can be unreliable for
-    # some types like 'audio/webm'.
+    # オブジェクトパスを構築する
     ext_map = {
         "audio/webm": ".webm",
         "audio/mpeg": ".mp3",
     }
-    ext = ext_map.get(content_type, "")
+    ext = ext_map.get(content_type)
 
-    # Use a more descriptive name to distinguish from generated audio.
-    object_name = f"uploads/{user_id}/{job_id}/source_audio{ext}"
+    if not ext:
+        logging.error("未対応のcontentTypeです: %s", content_type)
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            message=f"未対応のcontentTypeです: {content_type}。対応しているタイプ: {list(ext_map.keys())}",
+        )
+
+    object_name = f"{user_id}/{job_id}/source_audio{ext}"
 
     bucket = _storage_client.bucket(AUDIO_UPLOAD_BUCKET_NAME)
     blob = bucket.blob(object_name)
 
-    # Require the client to include custom metadata on upload.
-    # These headers, prefixed with 'x-goog-meta-', are stored as object
-    # metadata. Cloud Storage automatically makes them available in
-    # CloudEvents (e.g., 'x-goog-meta-job_id' becomes 'job_id' in the
-    # event payload's metadata field).
+    # クライアントにアップロード時にカスタムメタデータを含めるよう要求する。
+    # Cloud StorageはこれらをCloudEventsで自動的に利用可能にする。
+    # （例：'x-goog-meta-job_id'はイベントペイロードのmetadataフィールドで'job_id'になる）
     required_metadata_headers = {
         "x-goog-meta-job_id": job_id,
         "x-goog-meta-user_id": user_id,
@@ -119,7 +118,7 @@ def generate_signed_url(
 
     expiration_delta = timedelta(minutes=15)
 
-    # ---------------------- Signed URL generation ------------------------
+    # ---------------------- 署名付きURLの生成 ------------------------
     try:
         signed_url = blob.generate_signed_url(
             version="v4",
@@ -129,13 +128,13 @@ def generate_signed_url(
             headers=required_metadata_headers,
         )
     except GoogleAPIError as e:
-        logging.exception("Failed to generate signed URL: %s", e)
+        logging.exception("署名付きURLの生成に失敗しました: %s", e)
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
-            message="Failed to generate signed URL.",
+            message="署名付きURLの生成に失敗しました。",
         ) from e
 
-    # ---------------------- Firestore job registration -------------------
+    # ---------------------- Firestoreジョブの登録 -------------------
     try:
         _db.collection(JOBS_COLLECTION_NAME).document(job_id).set(
             {
@@ -146,15 +145,15 @@ def generate_signed_url(
             }
         )
     except Exception as e:
-        logging.exception("Failed to create job document: %s", e)
+        logging.exception("ジョブドキュメントの作成に失敗しました: %s", e)
 
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
-            message="Failed to create job record.",
+            message="ジョブレコードの作成に失敗しました。",
         ) from e
 
     logging.info(
-        "Generated signed URL for user=%s job=%s object=%s",
+        "ユーザー=%s、ジョブ=%s、オブジェクト=%s の署名付きURLを生成しました",
         user_id,
         job_id,
         object_name,
