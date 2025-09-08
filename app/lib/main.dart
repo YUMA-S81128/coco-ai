@@ -11,23 +11,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
-  // Ensure that Flutter bindings are initialized before any Flutter-specific code.
+  // Flutterのコードを実行する前に、Flutterバインディングが初期化されていることを確認
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with the retrieved options.
+  // Firebaseを初期化
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Sign in anonymously to get a unique user ID.
+  // 匿名認証でサインインし、ユニークなユーザーIDを取得
   try {
     await FirebaseAuth.instance.signInAnonymously();
-    debugPrint(
-      'Signed in anonymously with user: ${FirebaseAuth.instance.currentUser?.uid}',
-    );
+    debugPrint('匿名認証でサインインしました: ${FirebaseAuth.instance.currentUser?.uid}');
   } catch (e) {
-    debugPrint('Failed to sign in anonymously: $e');
+    debugPrint('匿名認証でのサインインに失敗しました: $e');
   }
 
-  // In debug mode, connect to the local Firebase Emulator Suite.
+  // デバッグモードの場合、ローカルのFirebase Emulator Suiteに接続
   if (kDebugMode) {
     try {
       const host = 'localhost';
@@ -42,7 +40,7 @@ Future<void> main() async {
     }
   }
 
-  // Wrap the app with ProviderScope to make Riverpod available throughout the app.
+  // アプリ全体でRiverpodを使えるように、ProviderScopeでアプリをラップ
   runApp(const ProviderScope(child: MyApp()));
 }
 

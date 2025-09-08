@@ -1,21 +1,21 @@
-/// A utility class that holds constants for Firebase configuration and keys.
+/// Firebaseの設定とキーの定数を保持するユーティリティクラス
 class FirebaseConstants {
-  // Private constructor to prevent instantiation.
+  // このクラスはインスタンス化されないように、プライベートコンストラクタを使用
   FirebaseConstants._();
 
-  // Cloud Functions/Firestore Region
+  // Cloud Functions/Firestore のリージョン
   static const String region = 'asia-northeast1';
 
-  // Cloud Functions Callable Function Names
+  // Cloud Functions の呼び出し可能な関数名
   static const String generateSignedUrl = 'generate_signed_url';
 
-  // Firestore Collection Names
+  // Firestore のコレクション名
   static const String jobsCollection = 'jobs';
 
-  // Request/Response Keys
+  // リクエスト/レスポンスのキー
   static const String contentType = 'contentType';
   static const String audioContentType = 'audio/webm';
 
-  // Local constants
+  // ローカル定数
   static const String recordFileName = 'voice_record.webm';
 }

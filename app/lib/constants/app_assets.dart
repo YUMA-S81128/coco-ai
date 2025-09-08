@@ -1,6 +1,6 @@
-/// A utility class that holds constants for asset paths.
+/// アセットパスの定数を保持するユーティリティクラス
 class AppAssets {
-  // Private constructor to prevent instantiation.
+  // このクラスはインスタンス化されないように、プライベートコンストラクタを使用
   AppAssets._();
 
   static const String coco = 'assets/images/coco.png';

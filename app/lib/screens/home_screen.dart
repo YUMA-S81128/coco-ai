@@ -4,17 +4,17 @@ import 'package:app/providers/app_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The main screen of the application.
+/// アプリケーションのメイン画面
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the application state from Riverpod.
+    // Riverpodからアプリケーションの状態を監視
     final appState = ref.watch(appStateProvider);
     final appNotifier = ref.read(appStateProvider.notifier);
 
-    // Listen for state changes to show a SnackBar on error.
+    // エラー時にSnackBarを表示するために状態の変化をリッスンする
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
         ScaffoldMessenger.of(
@@ -36,8 +36,10 @@ class HomeScreen extends ConsumerWidget {
             child: Image.asset(AppAssets.ai, width: 150, height: 150),
           ),
 
+          // 中央のコンテンツをビルド
           Center(child: _buildContent(context, appState)),
 
+          // マイクボタンをビルド
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -51,7 +53,7 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Builds the central content widget based on the current app state.
+/// 現在のアプリ状態に基づいて中央のコンテンツウィジェットをビルドする
 Widget _buildContent(BuildContext context, AppState appState) {
   final textTheme = Theme.of(context).textTheme;
 
@@ -69,7 +71,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Display the AI-generated illustration.
+          // AIが生成したイラストを表示
           Container(
             width: 300,
             height: 300,
@@ -96,7 +98,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
                 : null,
           ),
           const SizedBox(height: 24),
-          // Display the AI-generated explanation text.
+          // AIが生成した解説テキストを表示
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
@@ -110,7 +112,7 @@ Widget _buildContent(BuildContext context, AppState appState) {
     case AppStatus.initial:
     case AppStatus.recording:
     case AppStatus.error:
-      // Show a simple message in the initial, recording, or error states.
+      // 初期状態、録音中、またはエラー状態ではシンプルなメッセージを表示
       return Text(
         'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
         style: textTheme.headlineSmall,
@@ -119,14 +121,14 @@ Widget _buildContent(BuildContext context, AppState appState) {
   }
 }
 
-/// Builds the microphone button based on the current app state.
+/// 現在のアプリ状態に基づいてマイクボタンをビルドする
 Widget _buildMicButton(AppState appState, AppStateNotifier appNotifier) {
   final isRecording = appState.status == AppStatus.recording;
   final isProcessing = appState.status == AppStatus.processing;
 
   return IconButton(
     onPressed:
-        isProcessing // Disable the button while processing.
+        isProcessing // 処理中はボタンを無効化
         ? null
         : () => isRecording
               ? appNotifier.stopRecordingAndProcess()
