@@ -12,25 +12,26 @@ logger = get_logger(__name__)
 
 async def update_job_status(job_id: str, status: str, data: dict | None = None):
     """
-    Update the job status and additional information in Firestore.
+    Firestoreのジョブステータスと追加情報を更新する。
 
     Args:
-        job_id: The ID of the job to update.
-        status: The new status string.
-        data: Optional dictionary of additional data to store.
+        job_id: 更新対象のジョブID。
+        status: 新しいステータス文字列。
+        data: 保存する追加情報の辞書（任意）。
     """
-    logger.info(f"[{job_id}] Updating status to '{status}' with data: {data}")
+    logger.info(f"[{job_id}] ステータスを '{status}' に更新中... データ: {data}")
     job_ref = db.collection(settings.firestore_collection).document(job_id)
     update_data = {
         "status": status,
-        "updatedAt": firestore.SERVER_TIMESTAMP,
+        "updatedAt": firestore.SERVER_TIMESTAMP,  # サーバー側のタイムスタンプを使用
     }
     if data:
         update_data.update(data)
 
     try:
+        # Firestoreへの書き込みは同期的I/Oのため、別スレッドで実行
         await asyncio.to_thread(lambda: job_ref.set(update_data, merge=True))
-        logger.info(f"[{job_id}] Status updated to '{status}'")
+        logger.info(f"[{job_id}] ステータスを '{status}' に更新しました。")
     except Exception as e:
-        logger.error(f"[{job_id}] Error updating status: {e}", exc_info=True)
+        logger.error(f"[{job_id}] ステータス更新中にエラーが発生しました: {e}", exc_info=True)
         raise

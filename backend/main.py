@@ -1,4 +1,4 @@
-# Agents
+# 各種エージェント
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
 from agents.narrator_agent.agent import NarratorAgent
@@ -15,14 +15,14 @@ from google.adk.agents import ParallelAgent, SequentialAgent
 from google.adk.runners import Runner
 from google.genai.types import Content, Part
 
-# models & services & callback
+# モデル、サービス、コールバック関数
 from models.agent_models import StorageObjectData
 from pydantic import ValidationError
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger, setup_logging
 from services.session_service import create_session_service
 
-# config
+# 設定
 from config import get_settings
 
 app = FastAPI()
@@ -30,75 +30,84 @@ app = FastAPI()
 APP_NAME = "Coco-Ai"
 
 # ---------------------------
-# Logging & Settings
+# ログと設定の初期化
 # ---------------------------
 setup_logging()
 logger = get_logger(__name__)
 settings = get_settings()
 
 # ---------------------------
-# SessionService
+# セッションサービスの初期化
 # ---------------------------
 session_service = create_session_service()
 
 
 # ---------------------------
-# Helper Functions
+# ヘルパー関数
 # ---------------------------
 async def _parse_cloudevent_payload(request: Request) -> dict:
     """
-    Parses and validates the incoming CloudEvent payload from a FastAPI request.
-    Extracts job_id, user_id, bucket, and object name.
-    Performs a security check to ensure the event originates from the expected bucket.
+    FastAPIリクエストからCloudEventペイロードを解析・検証する。
+
+    job_id, user_id, bucket, object名を抽出し、
+    イベントが期待されるバケットから来たものであることを確認するセキュリティチェックも行う。
     """
     try:
         headers = request.headers
         body = await request.body()
         event = from_http(headers, body)
         if not event.data:
-            raise ValueError("CloudEvent data is empty.")
+            raise ValueError("CloudEventのデータが空です。")
 
-        # Validate and parse the payload using the Pydantic model
+        # Pydanticモデルを使用してペイロードを検証・解析
         storage_data = StorageObjectData.model_validate(event.data)
 
-        # Extract data from the event payload
+        # イベントペイロードからデータを抽出
         job_id = storage_data.metadata.job_id
         user_id = storage_data.metadata.user_id
         bucket = storage_data.bucket
         name = storage_data.name
 
-        # Security check: Ensure the event is from the expected bucket.
+        # セキュリティチェック: イベントが期待されたバケットからのものか確認
         if bucket != settings.audio_upload_bucket:
             logger.error(
-                f"[{job_id}] Invalid bucket in event: {bucket}. Expected: {settings.audio_upload_bucket}"
+                f"[{job_id}] 不正なバケットです: {bucket}。期待されるバケット: {settings.audio_upload_bucket}"
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Event from unexpected source bucket.",
+                detail="予期しないソースバケットからのイベントです。",
             )
         return {"job_id": job_id, "user_id": user_id, "bucket": bucket, "name": name}
     except ValidationError as e:
-        logger.error(f"Invalid CloudEvent payload: {e}", exc_info=True)
+        logger.error(f"不正なCloudEventペイロードです: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payload: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"不正なペイロードです: {e}"
         )
     except Exception as e:
-        logger.error(f"Failed to parse CloudEvent: {e}", exc_info=True)
+        logger.error(f"CloudEventの解析に失敗しました: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not parse CloudEvent.",
+            detail="CloudEventを解析できませんでした。",
         )
 
 
-# ---------------------------
-# Build Root Agent
-# ---------------------------
+# ---------------------------------
+# ルートエージェントの構築
+# ---------------------------------
 def build_root_agent() -> SequentialAgent:
     """
-    Construct the root agent pipeline:
-      Transcriber -> Explainer -> (Parallel: Illustrator & Narrator) -> ResultWriter
-    This uses ParallelAgent so branches run concurrently;
-    final failure-check will be performed in ResultWriterAgent
+    エージェントの処理パイプラインを構築する。
+
+    処理フロー:
+      音声文字起こし (Transcriber)
+      -> 子供向け解説生成 (Explainer)
+      -> [並列処理]
+         - イラスト生成 (Illustrator)
+         - 音声合成 (Narrator)
+      -> 最終結果の書き込み (ResultWriter)
+
+    IllustratorとNarratorは `ParallelAgent` を使って並列実行される。
+    最終的な失敗チェックは `ResultWriterAgent` で行われる。
     """
     transcriber = TranscriberAgent()
     explainer = ExplainerAgent()
@@ -106,12 +115,14 @@ def build_root_agent() -> SequentialAgent:
     narrator = NarratorAgent()
     result_writer = ResultWriterAgent()
 
+    # イラスト生成と音声合成を並列実行するブランチ
     parallel_branch = ParallelAgent(
         name="IllustrateAndNarrate",
         sub_agents=[illustrator, narrator],
-        description="Run image generation and text-to-speech concurrently",
+        description="イラスト生成と音声合成を並列で実行します。",
     )
 
+    # 全体の処理を定義するシーケンシャルなエージェント
     root = SequentialAgent(
         name="CocoAIPipeline",
         sub_agents=[transcriber, explainer, parallel_branch, result_writer],
@@ -121,13 +132,16 @@ def build_root_agent() -> SequentialAgent:
     return root
 
 
-# ---------------------------
-# Eventarc Handler
-# ---------------------------
+# ---------------------------------
+# Eventarcトリガーのエンドポイント
+# ---------------------------------
 @app.post("/invoke")
 async def invoke_pipeline(request: Request):
-    # Parse and validate the incoming CloudEvent payload.
-    # HTTPException from the helper will be propagated automatically by FastAPI.
+    """
+    Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
+    """
+    # CloudEventペイロードを解析・検証
+    # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
     event_data = await _parse_cloudevent_payload(request)
 
     job_id = event_data["job_id"]
@@ -136,15 +150,16 @@ async def invoke_pipeline(request: Request):
     name = event_data["name"]
 
     gcs_uri = f"gs://{bucket}/{name}"
-    logger.info(f"[{job_id}] Received CloudEvent for {gcs_uri}")
+    logger.info(f"[{job_id}] CloudEventを受信しました: {gcs_uri}")
 
     try:
+        # セッションの初期状態を設定
         initial_state = {"job_id": job_id, "gcs_uri": gcs_uri}
         session = await session_service.get_session(
             app_name=APP_NAME, user_id=user_id, session_id=job_id
         )
         if not session:
-            # If it's a new session, inject the initial state.
+            # 新しいセッションの場合、初期状態を注入してセッションを作成
             session = await session_service.create_session(
                 app_name=APP_NAME,
                 user_id=user_id,
@@ -152,15 +167,17 @@ async def invoke_pipeline(request: Request):
                 state=initial_state,
             )
 
+        # エージェントパイプラインを構築し、Runnerを初期化
         root_agent = build_root_agent()
         runner = Runner(
             agent=root_agent, app_name=APP_NAME, session_service=session_service
         )
 
+        # エージェントへの初期入力を作成
         user_content = Content(parts=[Part(text=gcs_uri)])
 
-        # Run the agent pipeline.
-        final_response_content = "No final response event received."
+        # エージェントパイプラインを実行
+        final_response_content = "最終レスポンスイベントを受信しませんでした。"
         async for event in runner.run_async(
             user_id=user_id, session_id=job_id, new_message=user_content
         ):
@@ -168,10 +185,13 @@ async def invoke_pipeline(request: Request):
                 final_response_content = event.content.parts[0].text
 
         logger.info(
-            f"[{job_id}] Workflow completed. Final response: {final_response_content}"
+            f"[{job_id}] ワークフローが完了しました。最終レスポンス: {final_response_content}"
         )
     except Exception as e:
-        logger.error(f"[{job_id}] Workflow failed: {e}", exc_info=True)
+        logger.error(
+            f"[{job_id}] ワークフローでエラーが発生しました: {e}", exc_info=True
+        )
+        # エラーが発生した場合、Firestoreのジョブステータスを更新
         await update_job_status(job_id, "error", {"errorMessage": str(e)})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)

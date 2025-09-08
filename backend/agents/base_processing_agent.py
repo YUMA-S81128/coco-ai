@@ -5,33 +5,34 @@ from models.agent_models import ExplanationOutput
 
 class BaseProcessingAgent(BaseAgent):
     """
-    A base agent for agents that process the explanation data.
+    解説データ（ExplanationOutput）を処理するエージェントのベースクラス。
 
-    Provides a common method to extract and validate required data
-    (job_id, explanation_data) from the session state. This reduces
-    boilerplate code in subclasses.
+    セッション状態から必要なデータ（job_id, explanation_data）を抽出し、
+    検証するための共通メソッドを提供する。これにより、サブクラスでの定型コードを削減する。
     """
 
     def _get_common_data(
         self, context: InvocationContext
     ) -> tuple[str, ExplanationOutput]:
         """
-        Retrieves and validates job_id and explanation_data from the session state.
+        セッション状態から job_id と explanation_data を取得し、検証する。
 
         Args:
-            context: The invocation context containing the session state.
+            context: セッション状態を含む呼び出しコンテキスト。
 
         Returns:
-            A tuple containing the job_id (str) and the parsed ExplanationOutput model.
+            job_id（文字列）とパースされたExplanationOutputモデルを含むタプル。
 
         Raises:
-            ValueError: If job_id or explanation_data is missing from the session state.
+            ValueError: job_id または explanation_data がセッション状態にない場合。
         """
         job_id = context.session.state.get("job_id")
         explanation_data = context.session.state.get("explanation_data")
 
         if not job_id or not explanation_data:
-            raise ValueError("job_id and explanation_data must be in session state.")
+            raise ValueError(
+                "job_id と explanation_data がセッション状態に存在する必要があります。"
+            )
 
         explanation = ExplanationOutput.model_validate(explanation_data)
         return job_id, explanation

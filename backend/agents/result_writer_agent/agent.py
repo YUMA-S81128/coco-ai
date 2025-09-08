@@ -17,14 +17,13 @@ from services.logging_service import get_logger
 
 class ResultWriterAgent(BaseAgent):
     """
-    The final agent in the workflow, responsible for writing the results to Firestore.
+    ワークフローの最終エージェント。結果をFirestoreに書き込む。
 
-    This agent inspects the session state for a `workflow_failed` flag or
-    `parallel_errors` set by previous agents or callbacks.
-    - If an error is detected, it updates the Firestore job document with a 'failed' status.
-    - If successful, it gathers all the generated artifacts (transcription,
-      explanation, image path, audio path), structures them, and updates the
-      Firestore document with a 'completed' status and the final data.
+    このエージェントは、先行するエージェントやコールバックによって設定された
+    `workflow_failed` フラグや `parallel_errors` をセッション状態から確認する。
+    - エラーが検出された場合、Firestoreのジョブドキュメントを 'failed' ステータスで更新する。
+    - 成功した場合、生成されたすべての成果物（文字起こし、解説、画像パス、音声パス）を
+      収集・構造化し、Firestoreドキュメントを 'completed' ステータスと最終データで更新する。
     """
 
     def __init__(self):
@@ -37,22 +36,21 @@ class ResultWriterAgent(BaseAgent):
         state = context.session.state or {}
         job_id = state.get("job_id")
         if not job_id:
-            raise ValueError("job_id not found in session state.")
+            raise ValueError("セッション状態にjob_idが見つかりません。")
 
-        # Check for failure based on the 'workflow_failed' flag or the presence
-        # of 'parallel_errors' from the ParallelAgent.
+        # `workflow_failed` フラグまたは `parallel_errors` の存在に基づいて失敗をチェック
         if state.get("workflow_failed") or state.get("parallel_errors"):
             errors = state.get("parallel_errors") or {
-                "unknown": "One or more agents failed"
+                "unknown": "1つ以上のエージェントが失敗しました"
             }
-            error_message = f"Workflow failed: {errors}"
+            error_message = f"ワークフローが失敗しました: {errors}"
             self.logger.error(f"[{job_id}] {error_message}")
             await update_job_status(job_id, "error", {"errorMessage": error_message})
-            # Raise an exception to ensure the overall process is marked as failed.
+            # プロセス全体が失敗としてマークされるように例外を発生させる
             raise RuntimeError(error_message)
 
         try:
-            # Retrieve and validate the required results from the session state.
+            # セッション状態から必要な結果を取得して検証
             transcription = TranscriptionResult.model_validate(state["transcription"])
             explanation_data = state["explanation_data"]
             illustration = IllustrationResult.model_validate(state["illustration"])
@@ -64,6 +62,7 @@ class ResultWriterAgent(BaseAgent):
                 **explanation_data,
             )
 
+            # 最終的なデータモデルを構築
             final_data_model = FinalJobData(
                 transcribedText=transcription.text,
                 childExplanation=explanation.child_explanation,
@@ -72,25 +71,27 @@ class ResultWriterAgent(BaseAgent):
                 imageGcsPath=illustration.image_gcs_path,
                 finalAudioGcsPath=narration.final_audio_gcs_path,
             )
+            # Firestoreに完了ステータスと最終データを書き込み
             await update_job_status(job_id, "completed", final_data_model.model_dump())
 
-            final_message = f"Workflow for job {job_id} completed successfully."
+            final_message = f"ジョブ {job_id} のワークフローが正常に完了しました。"
             self.logger.info(
-                f"[{job_id}] {final_message} Results written to Firestore."
+                f"[{job_id}] {final_message} 結果をFirestoreに書き込みました。"
             )
 
-            # Return the final success message as an event.
+            # 最終的な成功メッセージをイベントとして返す
             yield Event(
                 author=self.name, content=Content(parts=[Part(text=final_message)])
             )
 
         except Exception as e:
             self.logger.error(
-                f"[{job_id}] Error writing results to Firestore: {e}", exc_info=True
+                f"[{job_id}] Firestoreへの結果書き込み中にエラーが発生しました: {e}",
+                exc_info=True,
             )
             await update_job_status(
                 job_id,
                 "error",
-                {"errorMessage": f"Final result processing failed: {e}"},
+                {"errorMessage": f"最終結果の処理に失敗しました: {e}"},
             )
             raise

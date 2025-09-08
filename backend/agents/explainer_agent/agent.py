@@ -8,21 +8,21 @@ from .prompt import SYSTEM_INSTRUCTION_PROMPT
 
 class ExplainerAgent(LlmAgent):
     """
-    A conversational and explanatory agent that generates answers tailored for
-    young children, along with illustration prompts and hints for parents.
+    幼い子供向けにカスタマイズされた回答、イラストのプロンプト、
+    そして親向けのヒントを生成する、対話的で説明的なエージェント。
 
-    This agent uses a Gemini model to process the transcribed text and outputs
-    a structured JSON object defined by the `ExplanationOutput` schema.
+    このエージェントはGeminiモデルを使用して、書き起こされたテキストを処理し、
+    `ExplanationOutput`スキーマで定義された構造化JSONオブジェクトを出力する。
     """
 
     def __init__(self):
         super().__init__(
             name="ExplainerAgent",
-            description="Generates child-friendly explanations, illustration prompts, and parent hints.",
+            description="子供向けの解説、イラストプロンプト、親向けのヒントを生成します。",
             model=MODEL_ID,
             generate_content_config=GENERATE_CONFIG,
             instruction=SYSTEM_INSTRUCTION_PROMPT,
-            output_key="explanation_data",
-            output_schema=ExplanationOutput,
+            output_key="explanation_data",  # セッションに保存する際のキー
+            output_schema=ExplanationOutput,  # 出力の型定義
         )
         self.logger = get_logger(__name__)

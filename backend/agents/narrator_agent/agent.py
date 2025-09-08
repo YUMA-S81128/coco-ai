@@ -16,11 +16,11 @@ from .config import AUDIO_CONFIG, OPERATION_TIMEOUT, VOICE_SELECTION_PARAMS
 
 class NarratorAgent(BaseProcessingAgent):
     """
-    An agent that synthesizes speech from the explanation text.
+    解説テキストから音声を合成するエージェント。
 
-    This agent uses the Google Cloud Text-to-Speech API to convert an SSML
-    formatted string into an audio file (MP3) and uploads it to a
-    Google Cloud Storage bucket.
+    このエージェントは、Google Cloud Text-to-Speech APIを使用して、
+    SSML形式の文字列を音声ファイル（MP3）に変換し、
+    Google Cloud Storageバケットにアップロードする。
     """
 
     def __init__(self):
@@ -31,16 +31,17 @@ class NarratorAgent(BaseProcessingAgent):
 
     async def _run_async_impl(self, context: InvocationContext):
         """
-        Generates audio from an SSML text and saves it to Cloud Storage.
+        SSMLテキストから音声を生成し、Cloud Storageに保存する。
         """
         job_id, explanation = self._get_common_data(context)
         ssml_text = explanation.child_explanation_ssml
 
-        self.logger.info(f"[{job_id}] Starting speech synthesis (SSML): {ssml_text}")
+        self.logger.info(f"[{job_id}] 音声合成を開始します (SSML): {ssml_text}")
 
         try:
             synthesis_input = SynthesisInput(ssml=ssml_text)
 
+            # Text-to-Speech APIを呼び出し
             response = self.client.synthesize_speech(
                 input=synthesis_input,
                 voice=VOICE_SELECTION_PARAMS,
@@ -48,6 +49,7 @@ class NarratorAgent(BaseProcessingAgent):
                 timeout=OPERATION_TIMEOUT,
             )
 
+            # GCSにアップロード
             file_name = f"{job_id}-{uuid4()}.mp3"
             gcs_path = await upload_blob_from_memory(
                 bucket_name=self.settings.processed_audio_bucket,
@@ -56,17 +58,19 @@ class NarratorAgent(BaseProcessingAgent):
                 content_type="audio/mpeg",
             )
 
-            self.logger.info(f"[{job_id}] Speech synthesis completed: {gcs_path}")
+            self.logger.info(f"[{job_id}] 音声合成が完了しました: {gcs_path}")
+
+            # 結果をセッション状態に保存
             result = NarrationResult(job_id=job_id, final_audio_gcs_path=gcs_path)
             context.session.state["narration"] = result.model_dump()
 
             yield Event(
                 author=self.name,
-                content=Content(parts=[Part(text="Narration generated successfully.")]),
+                content=Content(parts=[Part(text="ナレーションの生成に成功しました。")])
             )
 
         except Exception as e:
             self.logger.error(
-                f"[{job_id}] Text-to-Speech API error: {e}", exc_info=True
+                f"[{job_id}] Text-to-Speech APIでエラーが発生しました: {e}", exc_info=True
             )
             raise
