@@ -1,14 +1,18 @@
 import 'dart:developer';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:app/providers/firebase_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 /// [StorageService] を提供するプロバイダー
-final storageServiceProvider = Provider((ref) => StorageService());
+final storageServiceProvider = Provider(
+  (ref) => StorageService(ref.watch(firebaseStorageProvider)),
+);
 
 /// Firebase Cloud Storageとやり取りするためのサービスクラス
 class StorageService {
-  final _storage = FirebaseStorage.instance;
+  final FirebaseStorage _storage;
+  StorageService(this._storage);
 
   /// GCS URI (gs://...) からダウンロード可能なHTTPS URLを取得
   ///

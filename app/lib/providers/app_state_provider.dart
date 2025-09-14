@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:app/providers/firebase_providers.dart';
 import 'package:app/constants/firebase_constants.dart';
 import 'package:app/services/auth_service.dart';
 import 'package:app/models/signed_url_response.dart';
@@ -8,18 +9,9 @@ import 'package:app/models/app_state.dart';
 import 'package:app/models/job.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
-
-/// Firebase Functionsのインスタンスを提供するプロバイダー
-final _functionsProvider = Provider(
-  (ref) => FirebaseFunctions.instanceFor(region: FirebaseConstants.region),
-);
-
-/// Firestoreのインスタンスを提供するプロバイダー
-final _firestoreProvider = Provider((ref) => FirebaseFirestore.instance);
 
 /// アプリケーションの状態（AppState）を管理するStateNotifierProvider
 final appStateProvider = StateNotifierProvider<AppStateNotifier, AppState>((
@@ -160,7 +152,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   /// 署名付きURLとジョブ詳細を取得するためにCloud Functionを呼び出す
   Future<Map<String, dynamic>> _getSignedUrlAndJobId() async {
-    final functions = _ref.read(_functionsProvider);
+    final functions = _ref.read(functionsProvider);
     final callable = functions.httpsCallable(
       FirebaseConstants.generateSignedUrl,
     );
@@ -222,7 +214,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
   void _listenToJobUpdates(String jobId) {
     _jobSubscription?.cancel();
     _jobSubscription = _ref
-        .read(_firestoreProvider)
+        .read(firestoreProvider)
         .collection(FirebaseConstants.jobsCollection)
         .doc(jobId)
         .snapshots()
