@@ -1,5 +1,4 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 
 /// Firebaseプロジェクトの設定を環境変数から読み込み、
 /// FirebaseOptionsオブジェクトを生成するためのクラス。

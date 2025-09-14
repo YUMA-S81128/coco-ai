@@ -31,14 +31,17 @@
   },
   "storage": [
     {
+      "target": "input-audio",
       "bucket": "coco-ai-input-audio",
       "rules": "storage.rules"
     },
     {
+      "target": "output-narrations",
       "bucket": "coco-ai-output-narrations",
       "rules": "storage.rules"
     },
     {
+      "target": "output-images",
       "bucket": "coco-ai-output-images",
       "rules": "storage.rules"
     }
@@ -59,6 +62,12 @@
     "ui": {
       "enabled": true
     },
-    "singleProjectMode": true
+    "singleProjectMode": true,
+    "auth": {
+      "port": 9099
+    },
+    "eventarc": {
+      "port": 9299
+    }
   }
 }

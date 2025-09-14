@@ -38,24 +38,46 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   /// 音声録音を開始
   Future<void> startRecording() async {
-    try {
-      // `start`メソッドは、まだ許可されていない場合に許可ダイアログをトリガーします。
-      // ユーザーが許可を拒否した場合に備え、try-catchブロックで囲みます。
-      state = state.copyWith(status: AppStatus.recording);
-      await _audioRecorder.start(
-        const RecordConfig(
-          // WebMコンテナで使用されるOpusコーデックを指定
-          encoder: AudioEncoder.opus,
-          // バックエンドのSpeech-to-Text設定とサンプルレートを一致させる
-          sampleRate: 48000,
-        ),
-        // pathはWebでは必須ですが使用されません。録音データはメモリに保存
-        path: FirebaseConstants.recordFileName,
-      );
-    } catch (e) {
+    // 録音を開始する前に、利用可能な入力デバイス（マイク）が存在するかを確認する
+    // これにより、物理的にマイクがない場合に即座にエラーを返すことができる
+    final devices = await _audioRecorder.listInputDevices();
+    if (devices.isEmpty) {
       state = state.copyWith(
         status: AppStatus.error,
-        errorMessage: 'マイクの使用許可が得られませんでした。ブラウザの設定を確認してください。',
+        errorMessage: 'マイクが見つかりませんでした。PCにマイクが接続されているか、OSのプライバシー設定を確認してください。',
+      );
+      return;
+    }
+
+    try {
+      // 録音を開始する。Webでは、このメソッドがマイクの使用許可を求めるプロンプトをトリガーする
+      await _audioRecorder.start(
+        const RecordConfig(encoder: AudioEncoder.opus, sampleRate: 48000),
+        path: FirebaseConstants.recordFileName,
+      );
+
+      // 録音が正常に開始されたことを確認し、UIの状態を更新
+      if (await _audioRecorder.isRecording()) {
+        state = state.copyWith(status: AppStatus.recording);
+      } else {
+        // start()が成功しても録音状態にならなかった場合のフォールバック
+        throw Exception('レコーダーが録音状態への移行に失敗しました。');
+      }
+    } catch (e) {
+      final errorString = e.toString().toLowerCase();
+      String errorMessage;
+
+      // ユーザーがマイクの使用を拒否した場合
+      if (errorString.contains('notallowederror') ||
+          errorString.contains('permission denied')) {
+        errorMessage = 'マイクの使用が許可されませんでした。ブラウザのアドレスバーのアイコンからサイトの設定を確認してください。';
+      } else {
+        // その他の予期しないエラー
+        errorMessage = '録音の開始に失敗しました。ページを再読み込みしてお試しください。';
+      }
+      state = state.copyWith(
+        status: AppStatus.error,
+        errorMessage: errorMessage,
       );
     }
   }
@@ -67,6 +89,16 @@ class AppStateNotifier extends StateNotifier<AppState> {
   /// 3. 音声ファイルを直接Cloud Storageにアップロード
   /// 4. Firestoreからリアルタイムでジョブステータスの更新リッスンを開始する
   Future<void> stopRecordingAndProcess() async {
+    // 処理を開始する前に、レコーダーが実際に録音中かを確認する
+    if (state.status != AppStatus.recording) {
+      state = state.copyWith(
+        status: AppStatus.error,
+        errorMessage: '録音されていませんでした。もう一度お試しください。',
+      );
+      // エラーメッセージ表示後、UIを初期状態に戻す
+      state = state.copyWith(status: AppStatus.initial);
+      return;
+    }
     // AuthServiceから現在のユーザーIDを取得
     final userId = _ref.read(authServiceProvider).currentUserId;
     if (userId == null) {
@@ -109,7 +141,7 @@ class AppStateNotifier extends StateNotifier<AppState> {
   Future<Uint8List> _stopAndGetAudioBytes() async {
     final audioPath = await _audioRecorder.stop();
     if (audioPath == null) {
-      throw Exception('録音データの保存に失敗しました。');
+      throw Exception('録音データがありません。録音が正常に開始されなかった可能性があります。');
     }
 
     // Webでは、`stop()`はblob URLを返します。HTTPリクエストでその内容を取得し、

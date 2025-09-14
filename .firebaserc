@@ -1,5 +1,21 @@
 {
   "projects": {
     "default": "coco-ai-469721"
-  }
+  },
+  "targets": {
+    "coco-ai-469721": {
+      "storage": {
+        "input-audio": [
+          "coco-ai-input-audio"
+        ],
+        "output-narrations": [
+          "coco-ai-output-narrations"
+        ],
+        "output-images": [
+          "coco-ai-output-images"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
