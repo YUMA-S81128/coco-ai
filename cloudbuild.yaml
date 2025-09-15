@@ -82,6 +82,7 @@ steps:
             --source=./functions \
             --entry-point=generate_signed_url \
             --trigger-http \
+            --allow-unauthenticated \
             --project=${PROJECT_ID} \
             --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION}"
         else
