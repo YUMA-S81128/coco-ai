@@ -26,5 +26,5 @@ class FirebaseConstants {
   );
 
   // 本番環境のFunctionsオリジン (Firebase Hosting URL)
-  static const String functionsOrigin = 'https://$_projectId.web.app';
+  static const String functionsOriginHost = '$_projectId.web.app';
 }

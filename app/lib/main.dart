@@ -39,7 +39,10 @@ Future<void> main() async {
     } else {
       // 本番環境では、Firebase Hostingのrewrites経由でFunctionsを呼び出す
       final functions = container.read(functionsProvider);
-      functions.useFunctionsEmulator(FirebaseConstants.functionsOrigin, 443);
+      functions.useFunctionsEmulator(
+        FirebaseConstants.functionsOriginHost,
+        443,
+      );
       debugPrint('本番環境のFunctionsオリジンを設定しました。');
     }
   } catch (e) {
