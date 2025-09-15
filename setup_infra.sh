@@ -5,10 +5,10 @@ set -e # コマンドが失敗したらすぐにスクリプトを終了する
 # このスクリプトは、Cloud Shellなどの環境で実行されることを想定しています。
 # 実行前に、以下の環境変数を設定してください。
 #
-# export GOOGLE_CLOUD_PROJECT_ID="your-gcp-project-id"
-# export AUDIO_UPLOAD_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-input-audio"
-# export PROCESSED_AUDIO_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-narrations"
-# export GENERATED_IMAGE_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-images"
+# export GOOGLE_CLOUD_PROJECT_ID
+# export AUDIO_UPLOAD_BUCKET
+# export PROCESSED_AUDIO_BUCKET
+# export GENERATED_IMAGE_BUCKET
 
 # 必須の環境変数が設定されているか確認
 if [ -z "$GOOGLE_CLOUD_PROJECT_ID" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ] || [ -z "$PROCESSED_AUDIO_BUCKET" ] || [ -z "$GENERATED_IMAGE_BUCKET" ]; then
@@ -37,6 +37,29 @@ for BUCKET in ${AUDIO_UPLOAD_BUCKET} ${PROCESSED_AUDIO_BUCKET} ${GENERATED_IMAGE
       --public-access-prevention
   fi
 done
+
+echo "--- アップロード用バケットにCORS設定を適用中 ---"
+# フロントエンド（Firebase Hosting）からのアップロードを許可するためのCORS設定
+CORS_CONFIG_FILE=$(mktemp)
+cat > "${CORS_CONFIG_FILE}" <<EOF
+[
+  {
+    "origin": [
+      "https://${GOOGLE_CLOUD_PROJECT_ID}.web.app"
+    ],
+    "method": ["PUT"],
+    "responseHeader": [
+      "Content-Type",
+      "x-goog-meta-job_id",
+      "x-goog-meta-user_id"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
+EOF
+
+gcloud storage buckets update "gs://${AUDIO_UPLOAD_BUCKET}" --cors-file="${CORS_CONFIG_FILE}"
+rm "${CORS_CONFIG_FILE}" # 一時ファイルを削除
 
 echo "--- Secret Managerのシークレットを確認・作成中 ---"
 # Cloud Buildでフロントエンドのビルドに必要なFirebase設定キーのリスト
