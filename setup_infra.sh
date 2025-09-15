@@ -85,6 +85,7 @@ echo "--- サービスアカウントを確認・作成中 ---"
 SERVICE_ACCOUNTS=(
   "${BACKEND_SA_NAME}|Coco-Ai Backend Service Account|${SERVICE_ACCOUNT_EMAIL}"
   "${TRIGGER_SA_NAME}|Coco-Ai Eventarc Invoker|${TRIGGER_SERVICE_ACCOUNT_EMAIL}"
+  "${FUNCTION_SA_NAME}|Coco-Ai Function Service Account|${FUNCTION_SERVICE_ACCOUNT_EMAIL}"
   "${CLOUDBUILD_SA_NAME}|Coco-Ai Cloud Build Service Account|${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}"
 )
 
@@ -132,6 +133,23 @@ gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
 gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/storage.objectCreator" >/dev/null
+
+echo "--- Functions用サービスアカウントに必要なIAMロールを付与中 ---"
+# FunctionsがFirestoreにジョブを登録するための権限
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/datastore.user" >/dev/null
+
+# Functionsが自分自身の権限を借用して署名付きURLを生成するための権限
+# (Service Account Token Creatorロールを自分自身に付与)
+gcloud iam service-accounts add-iam-policy-binding ${FUNCTION_SERVICE_ACCOUNT_EMAIL} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/iam.serviceAccountTokenCreator" >/dev/null
+
+# FunctionsがCloud Storageバケットのオブジェクト情報を読み取るための権限
+gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/storage.objectAdmin" >/dev/null
 
 echo "--- Eventarcトリガー用サービスアカウントに必要なIAMロールを付与中 ---"
 # Eventarcがこのサービスアカウントとしてイベントを中継するために必要

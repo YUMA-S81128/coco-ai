@@ -126,6 +126,7 @@ def generate_signed_url(
             method="PUT",
             content_type=content_type,
             headers=required_metadata_headers,
+            service_account_email=settings.function_sa_email,
         )
     except GoogleAPIError as e:
         logging.exception("署名付きURLの生成に失敗しました: %s", e)

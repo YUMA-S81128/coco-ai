@@ -13,6 +13,7 @@ export FUNCTION_NAME="generate_signed_url"
 # --- サービスアカウント名 (メールアドレスの@より前の部分) ---
 export BACKEND_SA_NAME="coco-ai-backend-sa"
 export TRIGGER_SA_NAME="coco-ai-eventarc-invoker"
+export FUNCTION_SA_NAME="coco-ai-function-sa"
 export CLOUDBUILD_SA_NAME="coco-ai-cloudbuild-sa"
 
 # --- リソース名 ---
@@ -25,5 +26,6 @@ export ARTIFACT_REGISTRY_REPO="coco-ai"
 if [ -n "$GOOGLE_CLOUD_PROJECT_ID" ]; then
     export SERVICE_ACCOUNT_EMAIL="${BACKEND_SA_NAME}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
     export TRIGGER_SERVICE_ACCOUNT_EMAIL="${TRIGGER_SA_NAME}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
+    export FUNCTION_SERVICE_ACCOUNT_EMAIL="${FUNCTION_SA_NAME}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
     export CLOUDBUILD_SERVICE_ACCOUNT_EMAIL="${CLOUDBUILD_SA_NAME}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
 fi
