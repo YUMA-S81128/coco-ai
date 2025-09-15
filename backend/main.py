@@ -1,4 +1,6 @@
 # 各種エージェント
+import asyncio
+
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
 from agents.narrator_agent.agent import NarratorAgent
@@ -201,6 +203,22 @@ async def run_pipeline_in_background(
             )
 
 
+def _run_pipeline_sync_wrapper(
+    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+):
+    """
+    run_pipeline_in_backgroundをasyncio.runで呼び出す同期ラッパー。
+    BackgroundTasksで安全に実行するために使用する。
+    """
+    try:
+        asyncio.run(run_pipeline_in_background(event_data, session_service))
+    except Exception as e:
+        logger.error(
+            f"[{event_data.get('job_id', '-')}] バックグラウンドパイプラインで予期せぬエラー: {e}",
+            exc_info=True,
+        )
+
+
 # ---------------------------------
 # Eventarcトリガーのエンドポイント
 # ---------------------------------
@@ -215,7 +233,7 @@ async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
     event_data = await _parse_cloudevent_payload(request)
 
     # バックグラウンドでパイプライン処理を実行するようにスケジュール
-    background_tasks.add_task(run_pipeline_in_background, event_data, session_service)
+    background_tasks.add_task(_run_pipeline_sync_wrapper, event_data, session_service)
 
     # Eventarcに即座に成功応答（204 No Content）を返し、リトライを防ぐ
     return Response(status_code=status.HTTP_204_NO_CONTENT)
