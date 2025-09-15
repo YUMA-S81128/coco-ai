@@ -139,6 +139,7 @@ steps:
             gcloud eventarc triggers create ${_TRIGGER_NAME} \
               --location=${_REGION} \
               --destination-run-service=${_BACKEND_SERVICE_NAME} \
+              --destination-run-path=/invoke \
               --destination-run-region=${_REGION} \
               --event-filters="type=google.cloud.storage.object.v1.finalized" \
               --event-filters="bucket=${_AUDIO_UPLOAD_BUCKET}" \
