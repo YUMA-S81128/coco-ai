@@ -28,7 +28,7 @@ SAFETY_SETTINGS = [
 GENERATE_CONFIG = types.GenerateContentConfig(
     safety_settings=SAFETY_SETTINGS,
     temperature=0.5,  # 生成されるテキストの多様性を制御 (0.0-1.0)
-    max_output_tokens=500,  # 生成されるテキストの最大長
+    max_output_tokens=2048,  # 生成されるテキストの最大長
     top_p=0.9,  # Top-pサンプリング。単語の選択肢を絞る
     response_mime_type="application/json",  # レスポンス形式をJSONに指定
 )

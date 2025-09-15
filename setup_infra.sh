@@ -85,7 +85,7 @@ done
 
 # --- Artifact Registryリポジトリを作成 ---
 echo "--- Artifact Registryリポジトリを確認・作成中: ${ARTIFACT_REGISTRY_REPO} ---"
-if gcloud artifacts repositories describe ${ARTIFACT_REGISTRY_REPO} --location=${REGION} >/dev/null 2>&1; then
+if gcloud artifacts repositories describe ${ARTIFACT_REGISTRY_REPO} --location=${GOOGLE_CLOUD_LOCATION} >/dev/null 2>&1; then
   echo "Artifact Registryリポジトリ ${ARTIFACT_REGISTRY_REPO} は既に存在します。"
 else
   echo "Artifact Registryリポジトリ ${ARTIFACT_REGISTRY_REPO} を作成中..."
