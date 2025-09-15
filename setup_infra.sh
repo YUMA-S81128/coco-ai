@@ -5,14 +5,14 @@ set -e # コマンドが失敗したらすぐにスクリプトを終了する
 # このスクリプトは、Cloud Shellなどの環境で実行されることを想定しています。
 # 実行前に、以下の環境変数を設定してください。
 #
-# export GOOGLE_CLOUD_PROJECT_ID
+# export GOOGLE_CLOUD_PROJECT
 # export AUDIO_UPLOAD_BUCKET
 # export PROCESSED_AUDIO_BUCKET
 # export GENERATED_IMAGE_BUCKET
 
 # 必須の環境変数が設定されているか確認
-if [ -z "$GOOGLE_CLOUD_PROJECT_ID" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ] || [ -z "$PROCESSED_AUDIO_BUCKET" ] || [ -z "$GENERATED_IMAGE_BUCKET" ]; then
-  echo "エラー: 必須の環境変数（GOOGLE_CLOUD_PROJECT_ID, AUDIO_UPLOAD_BUCKET, PROCESSED_AUDIO_BUCKET, GENERATED_IMAGE_BUCKET）が設定されていません。"
+if [ -z "$GOOGLE_CLOUD_PROJECT" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ] || [ -z "$PROCESSED_AUDIO_BUCKET" ] || [ -z "$GENERATED_IMAGE_BUCKET" ]; then
+  echo "エラー: 必須の環境変数（GOOGLE_CLOUD_PROJECT, AUDIO_UPLOAD_BUCKET, PROCESSED_AUDIO_BUCKET, GENERATED_IMAGE_BUCKET）が設定されていません。"
   echo "スクリプトの冒頭のコメントを参考に、環境変数を設定してから再実行してください。"
   exit 1
 fi
@@ -20,7 +20,7 @@ fi
 echo "--- プロジェクトを設定中 ---"
 # 共通の設定変数を読み込む
 source "$(dirname "$0")/config.sh"
-gcloud config set project ${GOOGLE_CLOUD_PROJECT_ID}
+gcloud config set project ${GOOGLE_CLOUD_PROJECT}
 
 echo "--- Cloud Storage バケットを作成中 ---"
 # Firebaseコンソールでの管理やセキュリティルールを適用したい場合は、
@@ -31,8 +31,8 @@ for BUCKET in ${AUDIO_UPLOAD_BUCKET} ${PROCESSED_AUDIO_BUCKET} ${GENERATED_IMAGE
   else
     echo "Creating bucket: gs://${BUCKET}"
     gcloud storage buckets create gs://${BUCKET} \
-      --project=${GOOGLE_CLOUD_PROJECT_ID} \
-      --location=${REGION} \
+      --project=${GOOGLE_CLOUD_PROJECT} \
+      --location=${GOOGLE_CLOUD_LOCATION} \
       --uniform-bucket-level-access \
       --public-access-prevention
   fi
@@ -45,7 +45,7 @@ cat > "${CORS_CONFIG_FILE}" <<EOF
 [
   {
     "origin": [
-      "https://${GOOGLE_CLOUD_PROJECT_ID}.web.app"
+      "https://${GOOGLE_CLOUD_PROJECT}.web.app"
     ],
     "method": ["PUT"],
     "responseHeader": [
@@ -86,19 +86,19 @@ done
 
 # --- Artifact Registryリポジトリを作成 ---
 echo "--- Artifact Registryリポジトリを確認・作成中: ${ARTIFACT_REGISTRY_REPO} ---"
-if gcloud artifacts repositories describe ${ARTIFACT_REGISTRY_REPO} --location=${REGION} >/dev/null 2>&1; then
+if gcloud artifacts repositories describe ${ARTIFACT_REGISTRY_REPO} --location=${GOOGLE_CLOUD_LOCATION} >/dev/null 2>&1; then
   echo "Artifact Registryリポジトリ ${ARTIFACT_REGISTRY_REPO} は既に存在します。"
 else
   echo "Artifact Registryリポジトリ ${ARTIFACT_REGISTRY_REPO} を作成中..."
   gcloud artifacts repositories create ${ARTIFACT_REGISTRY_REPO} \
-    --repository-format=docker --location=${REGION}
+    --repository-format=docker --location=${GOOGLE_CLOUD_LOCATION}
 fi
 
 echo "--- Firestore データベースを確認・作成中 ---"
 # Firestoreデータベースが存在しない場合のみ作成します。
-if ! gcloud firestore databases describe --project=${GOOGLE_CLOUD_PROJECT_ID} >/dev/null 2>&1; then
-  echo "Firestore データベースを Native モードで作成中 (location: ${REGION})..."
-  gcloud firestore databases create --location=${REGION} --project=${GOOGLE_CLOUD_PROJECT_ID}
+if ! gcloud firestore databases describe --project=${GOOGLE_CLOUD_PROJECT} >/dev/null 2>&1; then
+  echo "Firestore データベースを Native モードで作成中 (location: ${GOOGLE_CLOUD_LOCATION})..."
+  gcloud firestore databases create --location=${GOOGLE_CLOUD_LOCATION} --project=${GOOGLE_CLOUD_PROJECT}
 else
   echo "Firestore データベースは既に存在します。"
 fi
@@ -137,7 +137,7 @@ PROJECT_LEVEL_ROLES=(
 echo "プロジェクトレベルのロールを付与中..."
 for ROLE in "${PROJECT_LEVEL_ROLES[@]}"; do
   # 標準出力を/dev/nullにリダイレクトして成功時の長いポリシー出力を抑制し、エラー出力は表示されるようにします
-  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="${ROLE}" >/dev/null
 done
@@ -160,7 +160,7 @@ gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
 
 echo "--- Functions用サービスアカウントに必要なIAMロールを付与中 ---"
 # FunctionsがFirestoreにジョブを登録するための権限
-gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
   --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/datastore.user" >/dev/null
 
@@ -177,31 +177,31 @@ gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} \
 
 echo "--- Eventarcトリガー用サービスアカウントに必要なIAMロールを付与中 ---"
 # Eventarcがこのサービスアカウントとしてイベントを中継するために必要
-gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
   --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/eventarc.eventReceiver" >/dev/null
 
 # EventarcトリガーがCloud Runサービスを呼び出すために必要
 echo "Eventarcトリガー用サービスアカウントにCloud Run起動者のロールを付与中..."
 gcloud run services add-iam-policy-binding ${BACKEND_SERVICE_NAME} \
-  --region=${REGION} \
+  --region=${GOOGLE_CLOUD_LOCATION} \
   --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/run.invoker" \
   --platform=managed >/dev/null
 
 echo "--- Google管理のサービスエージェントに必要な権限を付与中 ---"
 # プロジェクト番号を一度だけ取得して、後続の処理で再利用する
-PROJECT_NUMBER=$(gcloud projects describe ${GOOGLE_CLOUD_PROJECT_ID} --format="value(projectNumber)")
+PROJECT_NUMBER=$(gcloud projects describe ${GOOGLE_CLOUD_PROJECT} --format="value(projectNumber)")
 
 # 1. Eventarc Service Agent
 EVENTARC_SA="service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com"
 echo "Eventarc Service Agent (${EVENTARC_SA}) にロールを付与..."
 # EventarcがPub/Subトピックにイベントを公開するため (pubsub.publisher)
 # Cloud Storageバケットの通知設定を管理するため (storage.admin)
-gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
     --member="serviceAccount:${EVENTARC_SA}" \
     --role="roles/pubsub.publisher" >/dev/null
-gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
     --member="serviceAccount:${EVENTARC_SA}" \
     --role="roles/storage.admin" >/dev/null
 
@@ -209,7 +209,7 @@ gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
 GCS_SA="service-${PROJECT_NUMBER}@gs-project-accounts.iam.gserviceaccount.com"
 echo "Cloud Storage Service Agent (${GCS_SA}) にロールを付与..."
 # Cloud StorageがPub/Subに通知を発行するため (pubsub.publisher)
-gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
     --member="serviceAccount:${GCS_SA}" \
     --role="roles/pubsub.publisher" >/dev/null
 
@@ -233,7 +233,7 @@ CLOUDBUILD_ROLES=(
 echo "Cloud Build サービスアカウント (${CLOUDBUILD_SA_NAME}) にロールを付与中..."
 for ROLE in "${CLOUDBUILD_ROLES[@]}"; do
   # 標準出力を/dev/nullにリダイレクトして成功時の長いポリシー出力を抑制し、エラー出力は表示されるようにします
-  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT} \
     --member="serviceAccount:${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}" \
     --role="${ROLE}" >/dev/null
 done

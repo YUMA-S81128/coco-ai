@@ -31,8 +31,10 @@ class Settings(BaseSettings):
     )
 
     # Google Cloud 設定
-    google_cloud_project_id: str = Field(..., description="Google CloudプロジェクトID")
-    region: str = Field(default="asia-northeast1", description="デフォルトのリージョン")
+    google_cloud_project: str = Field(..., description="Google CloudプロジェクトID")
+    google_cloud_location: str = Field(
+        default="asia-northeast1", description="デフォルトのリージョン/ロケーション"
+    )
 
     # Cloud Storage バケット設定
     audio_upload_bucket: str = Field(..., description="音声アップロード用のバケット名")

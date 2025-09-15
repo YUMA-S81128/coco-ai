@@ -1,7 +1,7 @@
 from google.adk.sessions import InMemorySessionService, VertexAiSessionService
+from services.logging_service import get_logger
 
 from config import get_settings
-from services.logging_service import get_logger
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -25,5 +25,5 @@ def create_session_service():
 
     logger.info("ADKセッションにVertexAiSessionServiceを使用します（本番用）。")
     return VertexAiSessionService(
-        project=settings.google_cloud_project_id, location=settings.region
+        project=settings.google_cloud_project, location=settings.google_cloud_location
     )

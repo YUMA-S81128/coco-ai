@@ -1,4 +1,6 @@
 # 各種エージェント
+import asyncio
+
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
 from agents.narrator_agent.agent import NarratorAgent
@@ -8,11 +10,19 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 
 # ADK & GenAI SDK
 from google.adk.agents import ParallelAgent, SequentialAgent
 from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 from google.genai.types import Content, Part
 
 # モデル、サービス、コールバック関数
@@ -132,18 +142,12 @@ def build_root_agent() -> SequentialAgent:
     return root
 
 
-# ---------------------------------
-# Eventarcトリガーのエンドポイント
-# ---------------------------------
-@app.post("/invoke")
-async def invoke_pipeline(request: Request):
+async def run_pipeline_in_background(
+    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+):
     """
-    Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
+    バックグラウンドで実行されるエージェントパイプラインのメインロジック。
     """
-    # CloudEventペイロードを解析・検証
-    # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
-    event_data = await _parse_cloudevent_payload(request)
-
     job_id = event_data["job_id"]
     user_id = event_data["user_id"]
     bucket = event_data["bucket"]
@@ -151,7 +155,6 @@ async def invoke_pipeline(request: Request):
 
     gcs_uri = f"gs://{bucket}/{name}"
     logger.info(f"[{job_id}] CloudEventを受信しました: {gcs_uri}")
-
     try:
         # セッションの初期状態を設定
         initial_state = {"job_id": job_id, "gcs_uri": gcs_uri}
@@ -192,7 +195,45 @@ async def invoke_pipeline(request: Request):
             f"[{job_id}] ワークフローでエラーが発生しました: {e}", exc_info=True
         )
         # エラーが発生した場合、Firestoreのジョブステータスを更新
-        await update_job_status(job_id, "error", {"errorMessage": str(e)})
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        try:
+            await update_job_status(job_id, "error", {"errorMessage": str(e)})
+        except Exception as db_error:
+            logger.error(
+                f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
+            )
+
+
+def _run_pipeline_sync_wrapper(
+    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+):
+    """
+    run_pipeline_in_backgroundをasyncio.runで呼び出す同期ラッパー。
+    BackgroundTasksで安全に実行するために使用する。
+    """
+    try:
+        asyncio.run(run_pipeline_in_background(event_data, session_service))
+    except Exception as e:
+        logger.error(
+            f"[{event_data.get('job_id', '-')}] バックグラウンドパイプラインで予期せぬエラー: {e}",
+            exc_info=True,
         )
+
+
+# ---------------------------------
+# Eventarcトリガーのエンドポイント
+# ---------------------------------
+@app.post("/invoke")
+async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
+    """
+    Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
+    リクエストを即座にACKし、重い処理はバックグラウンドで実行する。
+    """
+    # CloudEventペイロードを解析・検証
+    # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
+    event_data = await _parse_cloudevent_payload(request)
+
+    # バックグラウンドでパイプライン処理を実行するようにスケジュール
+    background_tasks.add_task(_run_pipeline_sync_wrapper, event_data, session_service)
+
+    # Eventarcに即座に成功応答（204 No Content）を返し、リトライを防ぐ
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

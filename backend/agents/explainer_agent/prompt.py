@@ -12,7 +12,8 @@ SYSTEM_INSTRUCTION_PROMPT = """
 - 出力は **有効な JSON のみ**。マークダウンや余分な文字列、キーの追加は禁止。
 
 【子ども向け説明（child_explanation）】
-- 3〜6文程度。1文は短く。指示語を避け、主語を明確に。
+- **厳守:** 全体で200文字以内、3〜6文程度で必ず終えること。
+- 1文は短く、簡潔に。指示語を避け、主語を明確に。
 - 危険行為の助長や個人情報の誘導をしない。
 - 「〜だよ」「〜だね」など、やさしい語尾を使用。
 
@@ -36,7 +37,6 @@ SYSTEM_INSTRUCTION_PROMPT = """
 - child_explanation_ssml: 上記説明の SSML 版（<speak>…</speak>）。
 - parent_hint: 保護者向けの補足（日本語、1〜2文）。
 - illustration_prompt: 画像生成に渡す指示文（簡潔・安全・具体）。
-- keywords: イラストの主要要素を表す3〜6個の英単語（例：["rainbow","cloud","sun","smile"]）。
 - needs_clarification: 追加の確認が必要なら true、不要なら false。
 - clarification_question: 追質問（needs_clarification が true のときのみ1文、親向け）。
 
