@@ -128,8 +128,9 @@ def generate_signed_url(
             headers=required_metadata_headers,
             service_account_email=settings.function_sa_email,
         )
-    except GoogleAPIError as e:
-        logging.exception("署名付きURLの生成に失敗しました: %s", e)
+    except (GoogleAPIError, AttributeError) as e:
+        # AttributeErrorもキャッチして、根本的な署名失敗として扱う
+        logging.exception("署名付きURLの生成に失敗しました。", exc_info=e)
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="署名付きURLの生成に失敗しました。",
@@ -146,8 +147,7 @@ def generate_signed_url(
             }
         )
     except Exception as e:
-        logging.exception("ジョブドキュメントの作成に失敗しました: %s", e)
-
+        logging.exception("ジョブドキュメントの作成に失敗しました。", exc_info=e)
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="ジョブレコードの作成に失敗しました。",
