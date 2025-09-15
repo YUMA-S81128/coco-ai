@@ -183,4 +183,4 @@ substitutions:
   _AUDIO_UPLOAD_BUCKET: "coco-ai-input-audio"
   _PROCESSED_AUDIO_BUCKET: "coco-ai-output-narrations"
   _GENERATED_IMAGE_BUCKET: "coco-ai-output-images"
-  _SESSION_SERVICE: "inmemory"
+  _SESSION_SERVICE: "vertex"

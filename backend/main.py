@@ -8,11 +8,19 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 
 # ADK & GenAI SDK
 from google.adk.agents import ParallelAgent, SequentialAgent
 from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 from google.genai.types import Content, Part
 
 # モデル、サービス、コールバック関数
@@ -132,18 +140,12 @@ def build_root_agent() -> SequentialAgent:
     return root
 
 
-# ---------------------------------
-# Eventarcトリガーのエンドポイント
-# ---------------------------------
-@app.post("/invoke")
-async def invoke_pipeline(request: Request):
+async def run_pipeline_in_background(
+    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+):
     """
-    Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
+    バックグラウンドで実行されるエージェントパイプラインのメインロジック。
     """
-    # CloudEventペイロードを解析・検証
-    # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
-    event_data = await _parse_cloudevent_payload(request)
-
     job_id = event_data["job_id"]
     user_id = event_data["user_id"]
     bucket = event_data["bucket"]
@@ -151,7 +153,6 @@ async def invoke_pipeline(request: Request):
 
     gcs_uri = f"gs://{bucket}/{name}"
     logger.info(f"[{job_id}] CloudEventを受信しました: {gcs_uri}")
-
     try:
         # セッションの初期状態を設定
         initial_state = {"job_id": job_id, "gcs_uri": gcs_uri}
@@ -198,8 +199,23 @@ async def invoke_pipeline(request: Request):
             logger.error(
                 f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
             )
-        # Eventarcのリトライを防ぐため、HTTP 204 (No Content) を返す
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # ワークフローが正常に完了した場合も、Eventarcに成功応答を返す
+
+# ---------------------------------
+# Eventarcトリガーのエンドポイント
+# ---------------------------------
+@app.post("/invoke")
+async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
+    """
+    Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
+    リクエストを即座にACKし、重い処理はバックグラウンドで実行する。
+    """
+    # CloudEventペイロードを解析・検証
+    # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
+    event_data = await _parse_cloudevent_payload(request)
+
+    # バックグラウンドでパイプライン処理を実行するようにスケジュール
+    background_tasks.add_task(run_pipeline_in_background, event_data, session_service)
+
+    # Eventarcに即座に成功応答（204 No Content）を返し、リトライを防ぐ
     return Response(status_code=status.HTTP_204_NO_CONTENT)
