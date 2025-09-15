@@ -26,8 +26,8 @@ class NarratorAgent(BaseProcessingAgent):
     def __init__(self):
         super().__init__(name="NarratorAgent")
         self._settings = get_settings()
-        self.client = TextToSpeechClient()
-        self.logger = get_logger(__name__)
+        self._client = TextToSpeechClient()
+        self._logger = get_logger(__name__)
 
     async def _run_async_impl(self, context: InvocationContext):
         """
@@ -36,13 +36,13 @@ class NarratorAgent(BaseProcessingAgent):
         job_id, explanation = self._get_common_data(context)
         ssml_text = explanation.child_explanation_ssml
 
-        self.logger.info(f"[{job_id}] 音声合成を開始します (SSML): {ssml_text}")
+        self._logger.info(f"[{job_id}] 音声合成を開始します (SSML): {ssml_text}")
 
         try:
             synthesis_input = SynthesisInput(ssml=ssml_text)
 
             # Text-to-Speech APIを呼び出し
-            response = self.client.synthesize_speech(
+            response = self._client.synthesize_speech(
                 input=synthesis_input,
                 voice=VOICE_SELECTION_PARAMS,
                 audio_config=AUDIO_CONFIG,
@@ -58,7 +58,7 @@ class NarratorAgent(BaseProcessingAgent):
                 content_type="audio/mpeg",
             )
 
-            self.logger.info(f"[{job_id}] 音声合成が完了しました: {gcs_path}")
+            self._logger.info(f"[{job_id}] 音声合成が完了しました: {gcs_path}")
 
             # 結果をセッション状態に保存
             result = NarrationResult(job_id=job_id, final_audio_gcs_path=gcs_path)
@@ -72,7 +72,7 @@ class NarratorAgent(BaseProcessingAgent):
             )
 
         except Exception as e:
-            self.logger.error(
+            self._logger.error(
                 f"[{job_id}] Text-to-Speech APIでエラーが発生しました: {e}",
                 exc_info=True,
             )

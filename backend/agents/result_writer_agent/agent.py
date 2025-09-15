@@ -28,7 +28,7 @@ class ResultWriterAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name="ResultWriterAgent")
-        self.logger = get_logger(__name__)
+        self._logger = get_logger(__name__)
 
     async def _run_async_impl(
         self, context: InvocationContext
@@ -44,7 +44,7 @@ class ResultWriterAgent(BaseAgent):
                 "unknown": "1つ以上のエージェントが失敗しました"
             }
             error_message = f"ワークフローが失敗しました: {errors}"
-            self.logger.error(f"[{job_id}] {error_message}")
+            self._logger.error(f"[{job_id}] {error_message}")
             await update_job_status(job_id, "error", {"errorMessage": error_message})
             # プロセス全体が失敗としてマークされるように例外を発生させる
             raise RuntimeError(error_message)
@@ -75,7 +75,7 @@ class ResultWriterAgent(BaseAgent):
             await update_job_status(job_id, "completed", final_data_model.model_dump())
 
             final_message = f"ジョブ {job_id} のワークフローが正常に完了しました。"
-            self.logger.info(
+            self._logger.info(
                 f"[{job_id}] {final_message} 結果をFirestoreに書き込みました。"
             )
 
@@ -85,7 +85,7 @@ class ResultWriterAgent(BaseAgent):
             )
 
         except Exception as e:
-            self.logger.error(
+            self._logger.error(
                 f"[{job_id}] Firestoreへの結果書き込み中にエラーが発生しました: {e}",
                 exc_info=True,
             )

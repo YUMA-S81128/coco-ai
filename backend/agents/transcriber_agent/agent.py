@@ -20,8 +20,8 @@ class TranscriberAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="TranscriberAgent")
         self._settings = get_settings()
-        self.speech_client = SpeechClient()
-        self.logger = get_logger(__name__)
+        self._speech_client = SpeechClient()
+        self._logger = get_logger(__name__)
 
     async def _run_async_impl(self, context: InvocationContext):
         """
@@ -35,7 +35,7 @@ class TranscriberAgent(BaseAgent):
                 "セッション状態には job_id と gcs_uri を提供する必要があります。"
             )
 
-        self.logger.info(f"[{job_id}] 音声の文字起こしを開始します: {gcs_uri}")
+        self._logger.info(f"[{job_id}] 音声の文字起こしを開始します: {gcs_uri}")
 
         try:
             # Speech-to-Textへのリクエストを作成
@@ -46,7 +46,7 @@ class TranscriberAgent(BaseAgent):
             )
 
             # APIを呼び出し
-            response = self.speech_client.recognize(
+            response = self._speech_client.recognize(
                 request=request, timeout=OPERATION_TIMEOUT
             )
 
@@ -56,12 +56,12 @@ class TranscriberAgent(BaseAgent):
             )
 
             if not transcript:
-                self.logger.warning(
+                self._logger.warning(
                     f"[{job_id}] 音声からテキストを抽出できませんでした。"
                 )
                 raise ValueError("文字起こしの結果が空です。")
 
-            self.logger.info(f"[{job_id}] 書き起こしテキスト: {transcript}")
+            self._logger.info(f"[{job_id}] 書き起こしテキスト: {transcript}")
 
             # ExplainerAgentのプロンプトテンプレート用に、書き起こしたテキストを保存する。
             context.session.state["transcribed_text"] = transcript
@@ -88,5 +88,5 @@ class TranscriberAgent(BaseAgent):
 
         except Exception as e:
             error_message = f"音声の文字起こし中にエラーが発生しました: {e}"
-            self.logger.error(f"[{job_id}] {error_message}", exc_info=True)
+            self._logger.error(f"[{job_id}] {error_message}", exc_info=True)
             raise

@@ -25,4 +25,4 @@ class ExplainerAgent(LlmAgent):
             output_key="explanation_data",  # セッションに保存する際のキー
             output_schema=ExplanationOutput,  # 出力の型定義
         )
-        self.logger = get_logger(__name__)
+        self._logger = get_logger(__name__)
