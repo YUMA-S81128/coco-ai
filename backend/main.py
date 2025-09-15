@@ -8,7 +8,7 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 
 # ADK & GenAI SDK
 from google.adk.agents import ParallelAgent, SequentialAgent
@@ -192,7 +192,14 @@ async def invoke_pipeline(request: Request):
             f"[{job_id}] ワークフローでエラーが発生しました: {e}", exc_info=True
         )
         # エラーが発生した場合、Firestoreのジョブステータスを更新
-        await update_job_status(job_id, "error", {"errorMessage": str(e)})
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+        try:
+            await update_job_status(job_id, "error", {"errorMessage": str(e)})
+        except Exception as db_error:
+            logger.error(
+                f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
+            )
+        # Eventarcのリトライを防ぐため、HTTP 204 (No Content) を返す
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ワークフローが正常に完了した場合も、Eventarcに成功応答を返す
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

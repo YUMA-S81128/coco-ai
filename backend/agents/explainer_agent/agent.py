@@ -24,5 +24,7 @@ class ExplainerAgent(LlmAgent):
             instruction=SYSTEM_INSTRUCTION_PROMPT,
             output_key="explanation_data",  # セッションに保存する際のキー
             output_schema=ExplanationOutput,  # 出力の型定義
+            disallow_transfer_to_parent=True,  # 警告を解消するため、データ転送を明示的に無効化
+            disallow_transfer_to_peers=True,  # 警告を解消するため、データ転送を明示的に無効化
         )
         self._logger = get_logger(__name__)
