@@ -99,6 +99,8 @@ flutter run -d chrome --dart-define-from-file=../config/dev.json
 
     `--dart-define-from-file` で渡された設定により、アプリはどの Firebase プロジェクトに属しているかを認識し、その上でローカルのエミュレータに接続します。
 
+> **Note:** このアプリケーションはバックエンドの保護に Firebase App Check (reCAPTCHA v3) を利用しています。ローカルで開発を行うには、`config/dev.json` に `RECAPTCHA_V3_SITE_KEY` を含めるだけでなく、Google Cloud reCAPTCHA 管理コンソールで、お使いのサイトキーの設定に `localhost` を許可ドメインとして追加する必要があります。
+
 ホットリロード機能により、コードを保存するだけで変更が即座にアプリに反映されます。
 
 > Note: 実行中のアプリを停止するには、アプリが実行されているターミナルで q キーを押します。

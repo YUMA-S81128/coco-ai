@@ -16,6 +16,7 @@ steps:
           "FIREBASE_PROJECT_ID"
           "FIREBASE_STORAGE_BUCKET"
           "FIREBASE_AUTH_DOMAIN"
+          "RECAPTCHA_V3_SITE_KEY"
         )
 
         for KEY in "$${SECRET_KEYS[@]}"; do
@@ -45,6 +46,7 @@ steps:
             --dart-define="FIREBASE_PROJECT_ID=$${FIREBASE_PROJECT_ID}" \
             --dart-define="FIREBASE_STORAGE_BUCKET=$${FIREBASE_STORAGE_BUCKET}" \
             --dart-define="FIREBASE_AUTH_DOMAIN=$${FIREBASE_AUTH_DOMAIN}"
+            --dart-define="RECAPTCHA_V3_SITE_KEY=$${RECAPTCHA_V3_SITE_KEY}"
         else
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi

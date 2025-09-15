@@ -32,7 +32,9 @@ _storage_client = storage.Client()
 _db = firestore.Client()
 
 
-@https_fn.on_call()
+@https_fn.on_call(
+    enforce_app_check=True,  # App Checkを強制する
+)
 def generate_signed_url(
     req: https_fn.CallableRequest[dict[str, Any]],
 ) -> dict[str, Any]:
