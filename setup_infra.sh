@@ -5,10 +5,10 @@ set -e # コマンドが失敗したらすぐにスクリプトを終了する
 # このスクリプトは、Cloud Shellなどの環境で実行されることを想定しています。
 # 実行前に、以下の環境変数を設定してください。
 #
-# export GOOGLE_CLOUD_PROJECT_ID="your-gcp-project-id"
-# export AUDIO_UPLOAD_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-input-audio"
-# export PROCESSED_AUDIO_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-narrations"
-# export GENERATED_IMAGE_BUCKET="${GOOGLE_CLOUD_PROJECT_ID}-coco-ai-output-images"
+# export GOOGLE_CLOUD_PROJECT_ID
+# export AUDIO_UPLOAD_BUCKET
+# export PROCESSED_AUDIO_BUCKET
+# export GENERATED_IMAGE_BUCKET
 
 # 必須の環境変数が設定されているか確認
 if [ -z "$GOOGLE_CLOUD_PROJECT_ID" ] || [ -z "$AUDIO_UPLOAD_BUCKET" ] || [ -z "$PROCESSED_AUDIO_BUCKET" ] || [ -z "$GENERATED_IMAGE_BUCKET" ]; then
@@ -37,6 +37,29 @@ for BUCKET in ${AUDIO_UPLOAD_BUCKET} ${PROCESSED_AUDIO_BUCKET} ${GENERATED_IMAGE
       --public-access-prevention
   fi
 done
+
+echo "--- アップロード用バケットにCORS設定を適用中 ---"
+# フロントエンド（Firebase Hosting）からのアップロードを許可するためのCORS設定
+CORS_CONFIG_FILE=$(mktemp)
+cat > "${CORS_CONFIG_FILE}" <<EOF
+[
+  {
+    "origin": [
+      "https://${GOOGLE_CLOUD_PROJECT_ID}.web.app"
+    ],
+    "method": ["PUT"],
+    "responseHeader": [
+      "Content-Type",
+      "x-goog-meta-job_id",
+      "x-goog-meta-user_id"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
+EOF
+
+gcloud storage buckets update "gs://${AUDIO_UPLOAD_BUCKET}" --cors-file="${CORS_CONFIG_FILE}"
+rm "${CORS_CONFIG_FILE}" # 一時ファイルを削除
 
 echo "--- Secret Managerのシークレットを確認・作成中 ---"
 # Cloud Buildでフロントエンドのビルドに必要なFirebase設定キーのリスト
@@ -86,6 +109,7 @@ echo "--- サービスアカウントを確認・作成中 ---"
 SERVICE_ACCOUNTS=(
   "${BACKEND_SA_NAME}|Coco-Ai Backend Service Account|${SERVICE_ACCOUNT_EMAIL}"
   "${TRIGGER_SA_NAME}|Coco-Ai Eventarc Invoker|${TRIGGER_SERVICE_ACCOUNT_EMAIL}"
+  "${FUNCTION_SA_NAME}|Coco-Ai Function Service Account|${FUNCTION_SERVICE_ACCOUNT_EMAIL}"
   "${CLOUDBUILD_SA_NAME}|Coco-Ai Cloud Build Service Account|${CLOUDBUILD_SERVICE_ACCOUNT_EMAIL}"
 )
 
@@ -133,6 +157,23 @@ gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
 gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/storage.objectCreator" >/dev/null
+
+echo "--- Functions用サービスアカウントに必要なIAMロールを付与中 ---"
+# FunctionsがFirestoreにジョブを登録するための権限
+gcloud projects add-iam-policy-binding ${GOOGLE_CLOUD_PROJECT_ID} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/datastore.user" >/dev/null
+
+# Functionsが自分自身の権限を借用して署名付きURLを生成するための権限
+# (Service Account Token Creatorロールを自分自身に付与)
+gcloud iam service-accounts add-iam-policy-binding ${FUNCTION_SERVICE_ACCOUNT_EMAIL} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/iam.serviceAccountTokenCreator" >/dev/null
+
+# FunctionsがCloud Storageバケットのオブジェクト情報を読み取るための権限
+gcloud storage buckets add-iam-policy-binding gs://${AUDIO_UPLOAD_BUCKET} \
+  --member="serviceAccount:${FUNCTION_SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/storage.objectAdmin" >/dev/null
 
 echo "--- Eventarcトリガー用サービスアカウントに必要なIAMロールを付与中 ---"
 # Eventarcがこのサービスアカウントとしてイベントを中継するために必要

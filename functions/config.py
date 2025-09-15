@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,8 +25,10 @@ class Settings(BaseSettings):
     # Firestoreコレクション
     firestore_collection: str = Field(..., description="Firestoreのコレクション名")
 
+    # 署名付きURL生成に使用するサービスアカウントのメールアドレス
+    function_sa_email: str = Field(
+        ..., description="Cloud Functionのサービスアカウントメール"
+    )
 
-@lru_cache
-def get_settings() -> Settings:
-    """アプリケーション設定をシングルトンとして取得し、キャッシュする関数。"""
-    return Settings()  # type: ignore
+
+settings = Settings()  # type: ignore
