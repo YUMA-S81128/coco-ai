@@ -19,7 +19,7 @@ class TranscriberAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name="TranscriberAgent")
-        self.settings = get_settings()
+        self._settings = get_settings()
         self.speech_client = SpeechClient()
         self.logger = get_logger(__name__)
 
@@ -40,7 +40,7 @@ class TranscriberAgent(BaseAgent):
         try:
             # Speech-to-Textへのリクエストを作成
             request = cloud_speech.RecognizeRequest(
-                recognizer=f"projects/{self.settings.google_cloud_project_id}/locations/global/recognizers/_",
+                recognizer=f"projects/{self._settings.google_cloud_project_id}/locations/global/recognizers/_",
                 config=RECOGNITION_CONFIG,
                 uri=gcs_uri,
             )

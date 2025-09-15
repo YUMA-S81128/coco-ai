@@ -25,15 +25,15 @@ class IllustratorAgent(BaseProcessingAgent):
 
     def __init__(self):
         super().__init__(name="IllustratorAgent")
-        self.settings = get_settings()
+        self._settings = get_settings()
         self.model = IMAGEN_MODEL_ID
         self.logger = get_logger(__name__)
 
         # Vertex AI APIを使用するクライアントを初期化
         self.client = genai.Client(
             vertexai=True,
-            project=self.settings.google_cloud_project_id,
-            location=self.settings.region,
+            project=self._settings.google_cloud_project_id,
+            location=self._settings.region,
         )
 
     async def _run_async_impl(self, context: InvocationContext):
@@ -42,14 +42,12 @@ class IllustratorAgent(BaseProcessingAgent):
         """
         job_id, explanation = self._get_common_data(context)
         prompt = explanation.illustration_prompt
-        self.logger.info(
-            f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}"
-        )
+        self.logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 
         # 保存先のGCSパスを生成
         destination_blob_name = f"{job_id}-{uuid4()}.png"
         output_gcs_uri = (
-            f"gs://{self.settings.generated_image_bucket}/{destination_blob_name}"
+            f"gs://{self._settings.generated_image_bucket}/{destination_blob_name}"
         )
 
         # 画像生成の設定
@@ -66,7 +64,9 @@ class IllustratorAgent(BaseProcessingAgent):
             if not images:
                 raise ValueError("画像生成に失敗しました。")
 
-            self.logger.info(f"[{job_id}] イラストをGCSに保存しました: {output_gcs_uri}")
+            self.logger.info(
+                f"[{job_id}] イラストをGCSに保存しました: {output_gcs_uri}"
+            )
 
             # 結果をセッション状態に保存
             result = IllustrationResult(
@@ -76,9 +76,10 @@ class IllustratorAgent(BaseProcessingAgent):
             context.session.state["illustration"] = result.model_dump()
             yield Event(
                 author=self.name,
-                content=Content(
-                    parts=[Part(text="イラストの生成に成功しました。")])
+                content=Content(parts=[Part(text="イラストの生成に成功しました。")]),
             )
         except Exception as e:
-            self.logger.error(f"[{job_id}] Imagen APIでエラーが発生しました: {e}", exc_info=True)
+            self.logger.error(
+                f"[{job_id}] Imagen APIでエラーが発生しました: {e}", exc_info=True
+            )
             raise

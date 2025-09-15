@@ -25,7 +25,7 @@ class NarratorAgent(BaseProcessingAgent):
 
     def __init__(self):
         super().__init__(name="NarratorAgent")
-        self.settings = get_settings()
+        self._settings = get_settings()
         self.client = TextToSpeechClient()
         self.logger = get_logger(__name__)
 
@@ -52,7 +52,7 @@ class NarratorAgent(BaseProcessingAgent):
             # GCSにアップロード
             file_name = f"{job_id}-{uuid4()}.mp3"
             gcs_path = await upload_blob_from_memory(
-                bucket_name=self.settings.processed_audio_bucket,
+                bucket_name=self._settings.processed_audio_bucket,
                 destination_blob_name=file_name,
                 data=response.audio_content,
                 content_type="audio/mpeg",
@@ -66,11 +66,14 @@ class NarratorAgent(BaseProcessingAgent):
 
             yield Event(
                 author=self.name,
-                content=Content(parts=[Part(text="ナレーションの生成に成功しました。")])
+                content=Content(
+                    parts=[Part(text="ナレーションの生成に成功しました。")]
+                ),
             )
 
         except Exception as e:
             self.logger.error(
-                f"[{job_id}] Text-to-Speech APIでエラーが発生しました: {e}", exc_info=True
+                f"[{job_id}] Text-to-Speech APIでエラーが発生しました: {e}",
+                exc_info=True,
             )
             raise
