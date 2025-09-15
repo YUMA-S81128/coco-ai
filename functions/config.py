@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,7 +31,4 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache
-def get_settings() -> Settings:
-    """アプリケーション設定をシングルトンとして取得し、キャッシュする関数。"""
-    return Settings()  # type: ignore
+settings = Settings()  # type: ignore

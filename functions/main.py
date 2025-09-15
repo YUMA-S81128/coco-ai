@@ -10,10 +10,7 @@ from firebase_functions import https_fn, options
 from google.api_core.exceptions import GoogleAPIError
 from google.cloud import firestore, storage
 
-from config import get_settings
-
-settings = get_settings()
-
+from .config import settings
 
 # Firebase Admin Appを一度だけ初期化
 try:
@@ -27,6 +24,8 @@ options.set_global_options(region=options.SupportedRegion.ASIA_NORTHEAST1)
 
 AUDIO_UPLOAD_BUCKET_NAME: str | None = settings.audio_upload_bucket
 JOBS_COLLECTION_NAME: str = settings.firestore_collection
+FUNCTION_SA_EMAIL: str = settings.function_sa_email
+
 
 _storage_client = storage.Client()
 _db = firestore.Client()
@@ -126,7 +125,7 @@ def generate_signed_url(
             method="PUT",
             content_type=content_type,
             headers=required_metadata_headers,
-            service_account_email=settings.function_sa_email,
+            service_account_email=FUNCTION_SA_EMAIL,
         )
     except (GoogleAPIError, AttributeError) as e:
         # AttributeErrorもキャッチして、根本的な署名失敗として扱う
