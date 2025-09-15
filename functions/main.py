@@ -7,8 +7,8 @@ from typing import Any
 
 from firebase_admin import initialize_app
 from firebase_functions import https_fn, options
-from google.api_core.exceptions import GoogleAPIError
 from google.auth import default as default_credentials
+from google.auth.impersonated_credentials import Credentials as ImpersonatedCredentials
 from google.cloud import firestore, storage
 
 from .config import settings
@@ -27,10 +27,6 @@ AUDIO_UPLOAD_BUCKET_NAME: str | None = settings.audio_upload_bucket
 JOBS_COLLECTION_NAME: str = settings.firestore_collection
 FUNCTION_SA_EMAIL: str = settings.function_sa_email
 
-
-_storage_client = storage.Client(
-    credentials=default_credentials(scopes=["https://www.googleapis.com/auth/iam"])[0]
-)
 _db = firestore.Client()
 
 
@@ -107,9 +103,6 @@ def generate_signed_url(
 
     object_name = f"{user_id}/{job_id}/source_audio{ext}"
 
-    bucket = _storage_client.bucket(AUDIO_UPLOAD_BUCKET_NAME)
-    blob = bucket.blob(object_name)
-
     # クライアントにアップロード時にカスタムメタデータを含めるよう要求する。
     # Cloud StorageはこれらをCloudEventsで自動的に利用可能にする。
     # （例：'x-goog-meta-job_id'はイベントペイロードのmetadataフィールドで'job_id'になる）
@@ -122,17 +115,56 @@ def generate_signed_url(
 
     # ---------------------- 署名付きURLの生成 ------------------------
     try:
-        signed_url = blob.generate_signed_url(
+        # ImpersonatedCredentials を使用して署名
+        # Cloud Functionsの実行IDが、指定されたサービスアカウント(FUNCTION_SA_EMAIL)に
+        # なりすまして署名を行う。
+
+        # 1. Cloud Functionsの実行環境の認証情報（ソース）を取得
+        source_credentials, project_id = default_credentials(
+            scopes=["https://www.googleapis.com/auth/iam"]
+        )
+
+        # 2. なりすまし先のサービスアカウント（ターゲット）を指定して、署名可能な認証情報を作成
+        lifetime_seconds = int(expiration_delta.total_seconds())
+        if lifetime_seconds <= 0:
+            lifetime_seconds = 3600
+        if lifetime_seconds > 3600:
+            lifetime_seconds = 3600
+
+        impersonated_creds = ImpersonatedCredentials(
+            source_credentials=source_credentials,
+            target_principal=FUNCTION_SA_EMAIL,
+            target_scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+            lifetime=lifetime_seconds,
+        )
+
+        # 3. 作成した認証情報を使って署名付きURLを生成
+        #    blobオブジェクトは、この署名可能な認証情報を使って署名処理を行います。
+        #    Requester Pays のバケットの場合は user_project を指定する必要があるため、
+        #    impersonated client を作成して bucket を取得する。
+        client_for_signing = storage.Client(
+            credentials=impersonated_creds, project=project_id
+        )
+
+        if project_id:
+            bucket_for_signing = client_for_signing.bucket(
+                AUDIO_UPLOAD_BUCKET_NAME, user_project=project_id
+            )
+        else:
+            bucket_for_signing = client_for_signing.bucket(AUDIO_UPLOAD_BUCKET_NAME)
+
+        blob_for_signing = bucket_for_signing.blob(object_name)
+
+        signed_url = blob_for_signing.generate_signed_url(
             version="v4",
             expiration=expiration_delta,
             method="PUT",
             content_type=content_type,
             headers=required_metadata_headers,
-            service_account_email=FUNCTION_SA_EMAIL,
+            credentials=impersonated_creds,
         )
-    except (GoogleAPIError, AttributeError) as e:
-        # AttributeErrorもキャッチして、根本的な署名失敗として扱う
-        logging.exception("署名付きURLの生成に失敗しました。", exc_info=e)
+    except Exception as e:
+        logging.exception("署名付きURLの生成に失敗しました。")
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="署名付きURLの生成に失敗しました。",
@@ -149,7 +181,7 @@ def generate_signed_url(
             }
         )
     except Exception as e:
-        logging.exception("ジョブドキュメントの作成に失敗しました。", exc_info=e)
+        logging.exception("ジョブドキュメントの作成に失敗しました。")
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message="ジョブレコードの作成に失敗しました。",
