@@ -18,4 +18,13 @@ class FirebaseConstants {
 
   // ローカル定数
   static const String recordFileName = 'voice_record.webm';
+
+  // --- 環境依存の定数 ---
+  // プロジェクトIDをコンパイル時の環境変数から取得
+  static const String _projectId = String.fromEnvironment(
+    'FIREBASE_PROJECT_ID',
+  );
+
+  // 本番環境のFunctionsオリジン (Firebase Hosting URL)
+  static const String functionsOrigin = 'https://$_projectId.web.app';
 }
