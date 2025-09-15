@@ -8,6 +8,7 @@ from typing import Any
 from firebase_admin import initialize_app
 from firebase_functions import https_fn, options
 from google.api_core.exceptions import GoogleAPIError
+from google.auth import default as default_credentials
 from google.cloud import firestore, storage
 
 from .config import settings
@@ -27,7 +28,9 @@ JOBS_COLLECTION_NAME: str = settings.firestore_collection
 FUNCTION_SA_EMAIL: str = settings.function_sa_email
 
 
-_storage_client = storage.Client()
+_storage_client = storage.Client(
+    credentials=default_credentials(scopes=["https://www.googleapis.com/auth/iam"])[0]
+)
 _db = firestore.Client()
 
 
