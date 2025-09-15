@@ -32,8 +32,8 @@ class IllustratorAgent(BaseProcessingAgent):
         # Vertex AI APIを使用するクライアントを初期化
         self._client = genai.Client(
             vertexai=True,
-            project=self._settings.google_cloud_project_id,
-            location=self._settings.region,
+            project=self._settings.google_cloud_project,
+            location=self._settings.google_cloud_location,
         )
 
     async def _run_async_impl(self, context: InvocationContext):

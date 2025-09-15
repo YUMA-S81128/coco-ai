@@ -87,12 +87,12 @@
     cp .env.example .env
     ```
 
-    | 変数名                    | 説明                                                        |
-    | :------------------------ | :---------------------------------------------------------- |
-    | `GOOGLE_CLOUD_PROJECT_ID` | あなたの Google Cloud プロジェクト ID。                     |
-    | `AUDIO_UPLOAD_BUCKET`     | フロントエンドから音声がアップロードされる GCS バケット名。 |
-    | `PROCESSED_AUDIO_BUCKET`  | 生成された解説音声（MP3）を保存する GCS バケット名。        |
-    | `GENERATED_IMAGE_BUCKET`  | 生成されたイラスト（PNG）を保存する GCS バケット名。        |
+    | 変数名                   | 説明                                                        |
+    | :----------------------- | :---------------------------------------------------------- |
+    | `GOOGLE_CLOUD_PROJECT`   | あなたの Google Cloud プロジェクト ID。                     |
+    | `AUDIO_UPLOAD_BUCKET`    | フロントエンドから音声がアップロードされる GCS バケット名。 |
+    | `PROCESSED_AUDIO_BUCKET` | 生成された解説音声（MP3）を保存する GCS バケット名。        |
+    | `GENERATED_IMAGE_BUCKET` | 生成されたイラスト（PNG）を保存する GCS バケット名。        |
 
 ### ローカルでの実行
 

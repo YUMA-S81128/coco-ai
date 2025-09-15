@@ -40,7 +40,7 @@ class TranscriberAgent(BaseAgent):
         try:
             # Speech-to-Textへのリクエストを作成
             request = cloud_speech.RecognizeRequest(
-                recognizer=f"projects/{self._settings.google_cloud_project_id}/locations/global/recognizers/_",
+                recognizer=f"projects/{self._settings.google_cloud_project}/locations/global/recognizers/_",
                 config=RECOGNITION_CONFIG,
                 uri=gcs_uri,
             )

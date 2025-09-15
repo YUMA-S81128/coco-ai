@@ -78,7 +78,7 @@ steps:
           gcloud functions deploy ${_FUNCTION_NAME} \
             --gen2 \
             --runtime=python313 \
-            --region=${_REGION} \
+            --region=${_GOOGLE_CLOUD_LOCATION} \
             --source=./functions \
             --entry-point=generate_signed_url \
             --trigger-http \
@@ -118,10 +118,10 @@ steps:
           gcloud run deploy ${_BACKEND_SERVICE_NAME} \
             --image "$${IMAGE_TAG}" \
             --platform managed \
-            --region ${_REGION} \
+            --region ${_GOOGLE_CLOUD_LOCATION} \
             --service-account ${_BACKEND_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
             --no-allow-unauthenticated \
-            --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID},AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET},GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},SESSION_SERVICE=${_SESSION_SERVICE},GOOGLE_GENAI_USE_VERTEXAI=true" \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_GOOGLE_CLOUD_LOCATION},AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET},GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},SESSION_SERVICE=${_SESSION_SERVICE},GOOGLE_GENAI_USE_VERTEXAI=true" \
             --project=${PROJECT_ID}
         fi
 
@@ -134,13 +134,13 @@ steps:
       - |
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "backend" || "${_DEPLOY_TARGET}" == "trigger" ]]; then
           echo ">>> Configuring Eventarc trigger..."
-          if ! gcloud eventarc triggers describe ${_TRIGGER_NAME} --location=${_REGION} --project=${PROJECT_ID} >/dev/null 2>&1; then
+          if ! gcloud eventarc triggers describe ${_TRIGGER_NAME} --location=${_GOOGLE_CLOUD_LOCATION} --project=${PROJECT_ID} >/dev/null 2>&1; then
             echo "Trigger ${_TRIGGER_NAME} not found. Creating..."
             gcloud eventarc triggers create ${_TRIGGER_NAME} \
-              --location=${_REGION} \
+              --location=${_GOOGLE_CLOUD_LOCATION} \
               --destination-run-service=${_BACKEND_SERVICE_NAME} \
               --destination-run-path=/invoke \
-              --destination-run-region=${_REGION} \
+              --destination-run-region=${_GOOGLE_CLOUD_LOCATION} \
               --event-filters="type=google.cloud.storage.object.v1.finalized" \
               --event-filters="bucket=${_AUDIO_UPLOAD_BUCKET}" \
               --service-account=${_TRIGGER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
@@ -171,7 +171,7 @@ options:
 
 substitutions:
   _DEPLOY_TARGET: "all"
-  _REGION: "asia-northeast1"
+  _GOOGLE_CLOUD_LOCATION: "asia-northeast1"
   _BACKEND_SERVICE_NAME: "coco-ai-backend"
   _FUNCTION_NAME: "generate_signed_url"
   _FUNCTION_SA_NAME: "coco-ai-function-sa"
