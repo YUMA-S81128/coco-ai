@@ -1,6 +1,5 @@
-import 'package:app/screens/home_screen.dart';
+import 'package:app/screens/auth_gate.dart';
 import 'package:app/firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,17 +12,8 @@ Future<void> main() async {
   // Firebaseを初期化
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 匿名認証でサインインし、ユニークなユーザーIDを取得
-  try {
-    await FirebaseAuth.instance.signInAnonymously();
-    debugPrint('匿名認証でサインインしました: ${FirebaseAuth.instance.currentUser?.uid}');
-  } catch (e) {
-    debugPrint('匿名認証でのサインインに失敗しました: $e');
-  }
-
   // RiverpodのDIコンテナを準備
   final container = ProviderContainer();
-
   runApp(UncontrolledProviderScope(container: container, child: const MyApp()));
 }
 
@@ -41,7 +31,7 @@ class MyApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ),
       ),
-      home: const HomeScreen(),
+      home: const AuthGate(),
     );
   }
 }

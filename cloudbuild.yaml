@@ -45,6 +45,7 @@ steps:
             --dart-define="FIREBASE_PROJECT_ID=$${FIREBASE_PROJECT_ID}" \
             --dart-define="FIREBASE_STORAGE_BUCKET=$${FIREBASE_STORAGE_BUCKET}" \
             --dart-define="FIREBASE_AUTH_DOMAIN=$${FIREBASE_AUTH_DOMAIN}"
+            --dart-define="AUTH_METHOD=${_AUTH_METHOD}"
         else
           echo ">>> Skipping Flutter build for target: ${_DEPLOY_TARGET}"
         fi
@@ -171,6 +172,7 @@ options:
 
 substitutions:
   _DEPLOY_TARGET: "all"
+  _AUTH_METHOD: "google" # 認証方法を指定 (google or anonymous)
   _GOOGLE_CLOUD_LOCATION: "asia-northeast1"
   _BACKEND_SERVICE_NAME: "coco-ai-backend"
   _FUNCTION_NAME: "generate_signed_url"
