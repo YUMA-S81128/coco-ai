@@ -24,7 +24,7 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
-        "source": "/asia-northeast1/generate_signed_url",
+        "source": "/generate_signed_url",
         "function": {
           "functionId": "generate_signed_url",
           "region": "asia-northeast1"
