@@ -1,5 +1,6 @@
 # 各種エージェント
 
+from contextlib import asynccontextmanager
 
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
@@ -10,10 +11,9 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
-from dependencies import get_firestore_client, get_session_service
+from dependencies import get_session_service
 from fastapi import (
     BackgroundTasks,
-    Depends,
     FastAPI,
     HTTPException,
     Request,
@@ -37,7 +37,27 @@ from services.logging_service import get_logger, setup_logging
 # 設定
 from config import get_settings
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPIアプリケーションのライフサイクルイベントを管理する。
+    起動時にFirestoreクライアントを初期化し、アプリケーション全体で共有する。
+    終了時にクライアントを閉じる。
+    """
+    # アプリケーション起動時
+    db_client = firestore.AsyncClient()
+    app.state.db_client = db_client
+    logger.info("Firestore client initialized.")
+    yield
+    # アプリケーション終了時
+    client: firestore.AsyncClient = app.state.db_client
+    if client:
+        client.close()
+    logger.info("Firestore client closed.")
+
+
+app = FastAPI(lifespan=lifespan)
 
 APP_NAME = "coco-ai"  # A logical name for the application/agent.
 
@@ -142,7 +162,7 @@ def build_root_agent() -> SequentialAgent:
 async def run_pipeline_in_background(
     event_data: dict,
     session_service: BaseSessionService,
-    db_client: firestore.Client,
+    db_client: firestore.AsyncClient,
 ):
     """
     バックグラウンドで実行されるエージェントパイプラインのメインロジック。
@@ -211,20 +231,19 @@ async def run_pipeline_in_background(
 async def invoke_pipeline(
     request: Request,
     background_tasks: BackgroundTasks,
-    session_service: BaseSessionService = Depends(get_session_service),
-    db_client: firestore.Client = Depends(get_firestore_client),
 ):
     """
     Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
     リクエストを即座にACKし、重い処理はバックグラウンドで実行する。
     """
+    db_client: firestore.AsyncClient = request.app.state.db_client
+
+    session_service: BaseSessionService = get_session_service(db_client)
     # CloudEventペイロードを解析・検証
     # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
     event_data = await _parse_cloudevent_payload(request)
 
     # バックグラウンドでパイプライン処理を実行するようにスケジュール
-    # 依存性注入されたsession_serviceインスタンスをタスクに渡す
-    # FastAPIは非同期関数を直接扱えるため、ラッパーは不要
     background_tasks.add_task(
         run_pipeline_in_background, event_data, session_service, db_client
     )

@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import traceback
 import uuid
 from datetime import datetime, timezone
@@ -18,6 +19,9 @@ logger = get_logger(__name__)
 # Pydanticモデル用のプレースホルダーとしてUTCを使用
 UTC = timezone.utc
 
+# Firestoreのフィールドパスで無効な文字を検出するための正規表現
+INVALID_KEY_CHARS = re.compile(r"[.$/\[\]]")
+
 
 def _to_epoch(dt: datetime) -> float:
     """
@@ -31,13 +35,11 @@ def _to_epoch(dt: datetime) -> float:
 
 def _normalize_timestamps(obj: Any) -> Any:
     """
-    Firestoreから取得したdict内のdatetimeを再帰的にepoch秒(float)に変換する。
+    Firestoreから取得したオブジェクト内のdatetimeを再帰的にepoch秒(float)に変換する。（非破壊的）
     """
     if isinstance(obj, dict):
-        # We iterate over a copy of the items because we're modifying the dict in place.
-        for k, v in list(obj.items()):
-            obj[k] = _normalize_timestamps(v)
-        return obj
+        # 新しい辞書を生成して副作用を避ける
+        return {k: _normalize_timestamps(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_normalize_timestamps(x) for x in obj]
     if isinstance(obj, datetime):
@@ -97,9 +99,11 @@ class FirestoreSessionService(BaseSessionService):
     - model_dump(by_alias=True) を使用して書き込むことで、フィールドがADKスキーマ（appName, userIdなど）と一致するようにします。
     """
 
-    def __init__(self, collection_name: str = "adk_sessions"):
-        # Firestoreの非同期クライアントを初期化
-        self._db = firestore.AsyncClient()
+    def __init__(
+        self, db_client: firestore.AsyncClient, collection_name: str = "adk_sessions"
+    ):
+        # 外部から渡された共有クライアントを使用
+        self._db = db_client
         self._collection = self._db.collection(collection_name)
         logger.info(
             "FirestoreSessionService initialized (collection=%s)", collection_name
@@ -154,6 +158,90 @@ class FirestoreSessionService(BaseSessionService):
             )
         return session
 
+    async def update_session(
+        self,
+        *,
+        session_id: str,
+        state_delta: dict[str, Any],
+        app_name: str | None = None,
+        user_id: str | None = None,
+        raise_on_missing: bool = False,
+        max_state_keys: int = 200,
+    ) -> Session | None:
+        """
+        セッションの状態(state)をアトミックに更新し、更新後のセッションオブジェクトを返す。
+
+        このメソッドは、ADKのLlmAgentが`output_key`を持つ場合に内部的に呼び出され、
+        LLMの出力などをセッション状態に永続化する役割を担う。
+
+        Args:
+            session_id: 更新対象のセッションID。
+            state_delta: セッションのstateにマージするデータの辞書。
+            app_name: (任意) 所有者検証用のアプリケーション名。
+            user_id: (任意) 所有者検証用のユーザーID。
+            raise_on_missing: (任意) セッションが存在しない場合に例外を投げるかどうかのフラグ。
+            max_state_keys: (任意) 一度に更新できるキーの最大数（過大な更新を防ぐ保護機能）。
+
+        Returns:
+            更新が成功した場合は、最新の `Session` オブジェクト。セッションが存在しない場合は `None`。
+        """
+        if not state_delta:
+            logger.debug(
+                "update_session called with empty state_delta for %s", session_id
+            )
+            # 更新がない場合でも、現在のセッション状態を返す
+            return await self.get_session(
+                app_name=app_name or "",
+                user_id=user_id or "",
+                session_id=session_id,
+                ignore_owner_check=not (app_name and user_id),
+            )
+
+        if len(state_delta) > max_state_keys:
+            raise ValueError(
+                f"state_delta too large ({len(state_delta)} > {max_state_keys})"
+            )
+
+        session_ref = self._collection.document(session_id)
+        update_data: dict[str, Any] = {"lastUpdateTime": firestore.SERVER_TIMESTAMP}
+        for key, value in state_delta.items():
+            if INVALID_KEY_CHARS.search(key):
+                raise ValueError(f"Invalid character in state_delta key: '{key}'")
+            update_data[f"state.{key}"] = value
+
+        transaction = self._db.transaction()
+
+        @firestore.async_transactional
+        async def update_in_transaction(transaction: firestore.AsyncTransaction):
+            snap = await session_ref.get(transaction=transaction)
+            if not snap.exists:
+                if raise_on_missing:
+                    raise FileNotFoundError(f"Session {session_id} not found.")
+                return False
+
+            if app_name is not None or user_id is not None:
+                doc = snap.to_dict() or {}
+                if app_name is not None and doc.get("appName") != app_name:
+                    raise PermissionError("app_name mismatch for session update")
+                if user_id is not None and doc.get("userId") != user_id:
+                    raise PermissionError("user_id mismatch for session update")
+
+            transaction.update(session_ref, update_data)
+            return True
+
+        ok = await _run_with_retries(
+            update_in_transaction, transaction, log_context={"session_id": session_id}
+        )
+        if not ok:
+            return None
+
+        return await self.get_session(
+            app_name=app_name or "",
+            user_id=user_id or "",
+            session_id=session_id,
+            ignore_owner_check=True,
+        )
+
     async def get_session(
         self,
         *,
@@ -161,6 +249,7 @@ class FirestoreSessionService(BaseSessionService):
         user_id: str,
         session_id: str,
         config: Any | None = None,
+        ignore_owner_check: bool = False,
         include_events: bool = False,
     ) -> Session | None:
         doc_ref = self._collection.document(session_id)
@@ -197,7 +286,9 @@ class FirestoreSessionService(BaseSessionService):
         data.pop("eventsCount", None)
         session = Session.model_validate(data)
 
-        if session.app_name != app_name or session.user_id != user_id:
+        if not ignore_owner_check and (
+            session.app_name != app_name or session.user_id != user_id
+        ):
             logger.warning(
                 "session found but app_name/user_id mismatch (doc=%s, expected app=%s user=%s)",
                 session_id,
@@ -259,9 +350,7 @@ class FirestoreSessionService(BaseSessionService):
                     1
                 ),  # イベント数をアトミックにインクリメント
             }
-            if event.actions and event.actions.state_delta:
-                for key, value in event.actions.state_delta.items():
-                    update_data[f"state.{key}"] = value
+
             transaction.update(session_ref, update_data)
 
         # レビュー指摘対応: 堅牢化のため、リトライラッパー経由でトランザクションを実行

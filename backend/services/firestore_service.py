@@ -1,5 +1,3 @@
-import asyncio
-
 from google.cloud import firestore
 from services.logging_service import get_logger
 
@@ -9,7 +7,7 @@ logger = get_logger(__name__)
 
 
 async def update_job_status(
-    db: firestore.Client, job_id: str, status: str, data: dict | None = None
+    db: firestore.AsyncClient, job_id: str, status: str, data: dict | None = None
 ):
     """
     Firestoreのジョブステータスと追加情報を更新する。
@@ -31,8 +29,7 @@ async def update_job_status(
         update_data.update(data)
 
     try:
-        # Firestoreへの書き込みは同期的I/Oのため、別スレッドで実行
-        await asyncio.to_thread(lambda: job_ref.set(update_data, merge=True))
+        await job_ref.set(update_data, merge=True)
         logger.info(f"[{job_id}] ステータスを '{status}' に更新しました。")
     except Exception as e:
         logger.error(
