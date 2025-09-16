@@ -7,6 +7,7 @@ from google.adk.events import Event
 from google.genai import types
 from google.genai.types import Content, Part
 from models.agent_models import IllustrationResult
+from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 
 from config import get_settings
@@ -40,7 +41,7 @@ class IllustratorAgent(BaseProcessingAgent):
         """
         プロンプトからイラストを生成し、Cloud Storageに保存する。
         """
-        job_id, explanation = self._get_common_data(context)
+        job_id, explanation = await self._get_common_data(context)
         prompt = explanation.illustration_prompt
         self._logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 
@@ -68,16 +69,41 @@ class IllustratorAgent(BaseProcessingAgent):
                 f"[{job_id}] イラストをGCSに保存しました: {output_gcs_uri}"
             )
 
-            # 結果をセッション状態に保存
             result = IllustrationResult(
                 job_id=job_id,
                 image_gcs_path=output_gcs_uri,
             )
-            context.session.state["illustration"] = result.model_dump()
+
+            # メモリ上のセッション状態をまず更新
+            context.session.state["illustration"] = result
+
+            # update_sessionを直接呼び出し、状態の永続化を待つ
+            try:
+                self._logger.info(f"[{job_id}] イラスト結果をセッションに永続化します...")
+                session_service = context.session_service
+                assert isinstance(session_service, FirestoreSessionService)
+
+                updated_session = await session_service.update_session(
+                    session_id=context.session.id,
+                    state_delta={"illustration": result},
+                    app_name=context.session.app_name,
+                    user_id=context.session.user_id,
+                )
+                if not updated_session:
+                    raise RuntimeError("セッションの更新に失敗しました (update_session returned None)")
+                self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
+            except Exception as e:
+                self._logger.error(
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}", exc_info=True
+                )
+                raise
+
+            # 状態更新を含まない、単純な完了イベントをyieldする
             yield Event(
                 author=self.name,
                 content=Content(parts=[Part(text="イラストの生成に成功しました。")]),
             )
+
         except Exception as e:
             self._logger.error(
                 f"[{job_id}] Imagen APIでエラーが発生しました: {e}", exc_info=True
