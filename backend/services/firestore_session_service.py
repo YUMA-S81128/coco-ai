@@ -145,6 +145,8 @@ class FirestoreSessionService(BaseSessionService):
         created_data = created_snap.to_dict()
         if created_data:
             _normalize_timestamps(created_data)
+            # ADKのSessionモデルにないカスタムフィールドを検証前に削除
+            created_data.pop("eventsCount", None)
             session = Session.model_validate(created_data)
         else:
             logger.error(
@@ -191,6 +193,8 @@ class FirestoreSessionService(BaseSessionService):
 
         # 親ドキュメントのタイムスタンプも正規化
         _normalize_timestamps(data)
+        # ADKのSessionモデルにないカスタムフィールドを検証前に削除
+        data.pop("eventsCount", None)
         session = Session.model_validate(data)
 
         if session.app_name != app_name or session.user_id != user_id:
@@ -326,5 +330,7 @@ class FirestoreSessionService(BaseSessionService):
             data["events"] = []
             # lastUpdateTimeなどのタイムスタンプフィールドを正規化
             _normalize_timestamps(data)
+            # ADKのSessionモデルにないカスタムフィールドを検証前に削除
+            data.pop("eventsCount", None)
             sessions.append(Session.model_validate(data))
         return sessions
