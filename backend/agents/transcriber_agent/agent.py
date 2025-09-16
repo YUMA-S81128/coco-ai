@@ -63,20 +63,59 @@ class TranscriberAgent(BaseAgent):
 
             self._logger.info(f"[{job_id}] 書き起こしテキスト: {transcript}")
 
-            # 最終的なResultWriterAgent用に、構造化された結果オブジェクトを作成する。
             result = TranscriptionResult(
                 job_id=job_id, gcs_uri=gcs_uri, text=transcript
             )
+
+            # メモリ上のセッション状態をまず更新
             context.session.state["transcribed_text"] = transcript
             context.session.state["transcription"] = result
 
+            # update_sessionを直接呼び出し、状態の永続化を待つ
+            try:
+                self._logger.info(
+                    f"[{job_id}] 文字起こし結果をセッションに永続化します..."
+                )
+                session_service = context.session_service
+
+                # update_sessionの存在を動的にチェックし、型安全性を確保する
+                if hasattr(session_service, "update_session"):
+                    # getattrで動的にメソッドを取得して呼び出す
+                    update_session_func = getattr(session_service, "update_session")
+                    updated_session = await update_session_func(
+                        session_id=context.session.id,
+                        state_delta={
+                            "transcribed_text": transcript,
+                            "transcription": result,
+                        },
+                        app_name=context.session.app_name,
+                        user_id=context.session.user_id,
+                    )
+                    if not updated_session:
+                        raise RuntimeError(
+                            "セッションの更新に失敗しました (update_session returned None)"
+                        )
+                else:
+                    # InMemorySessionServiceなど、update_sessionを持たない場合にフォールバック
+                    self._logger.warning(
+                        "session_service does not have update_session method. "
+                        "State will be persisted by the next event."
+                    )
+
+                self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
+            except Exception as e:
+                self._logger.error(
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
+                    exc_info=True,
+                )
+                raise
+
+            # 状態更新を含まない、単純な完了イベントをyieldする
             yield Event(
                 author=self.name,
                 content=Content(
                     parts=[
-                        Part(
-                            text="文字起こしが完了し、テキストがセッション状態に保存されました。"
-                        )
+                        Part(text="文字起こしが完了し、結果をFirestoreに保存しました。")
                     ]
                 ),
             )
