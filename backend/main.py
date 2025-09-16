@@ -156,7 +156,7 @@ async def run_pipeline_in_background(
     logger.info(f"[{job_id}] CloudEventを受信しました: {gcs_uri}")
     try:
         # セッションの初期状態を設定
-        initial_state = {"job_id": job_id, "gcs_uri": gcs_uri}
+        initial_data = {"state": {"job_id": job_id, "gcs_uri": gcs_uri}}
         session = await session_service.get_session(
             app_name=APP_NAME, user_id=user_id, session_id=job_id
         )
@@ -166,7 +166,7 @@ async def run_pipeline_in_background(
                 app_name=APP_NAME,
                 user_id=user_id,
                 session_id=job_id,
-                state=initial_state,
+                **initial_data,
             )
 
         # エージェントパイプラインを構築し、Runnerを初期化
