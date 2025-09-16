@@ -1,6 +1,5 @@
 # 各種エージェント
 
-from functools import lru_cache
 
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
@@ -11,6 +10,7 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
+from dependencies import get_firestore_client, get_session_service
 from fastapi import (
     BackgroundTasks,
     Depends,
@@ -33,7 +33,6 @@ from models.agent_models import StorageObjectData
 from pydantic import ValidationError
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger, setup_logging
-from services.session_service import create_session_service
 
 # 設定
 from config import get_settings
@@ -48,21 +47,6 @@ APP_NAME = "coco-ai"  # A logical name for the application/agent.
 setup_logging()
 logger = get_logger(__name__)
 settings = get_settings()
-
-
-# ---------------------------
-# 依存性注入用の関数
-# ---------------------------
-@lru_cache
-def get_session_service() -> BaseSessionService:
-    """セッションサービスのシングルトンインスタンスを生成・取得する。"""
-    return create_session_service()
-
-
-@lru_cache
-def get_firestore_client() -> firestore.Client:
-    """Firestore Clientのシングルトンインスタンスを生成・取得する。"""
-    return firestore.Client()
 
 
 # ---------------------------

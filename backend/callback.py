@@ -1,10 +1,9 @@
-from google.adk.agents.callback_context import CallbackContext
-
 # ADKコールバックはFastAPIのDIシステムの外で実行されるため、
 # 必要な依存関係をここで直接取得します。
 # main.pyと同様のlru_cacheパターンを使用することで、
 # パイプライン実行中にインスタンスが再生成されるのを防ぎます。
-from main import get_firestore_client
+from dependencies import get_firestore_client
+from google.adk.agents.callback_context import CallbackContext
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger
 
