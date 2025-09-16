@@ -1,5 +1,6 @@
 # 各種エージェント
-import asyncio
+
+from contextlib import asynccontextmanager
 
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
@@ -10,6 +11,7 @@ from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
+from dependencies import get_session_service
 from fastapi import (
     BackgroundTasks,
     FastAPI,
@@ -22,7 +24,8 @@ from fastapi import (
 # ADK & GenAI SDK
 from google.adk.agents import ParallelAgent, SequentialAgent
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService, VertexAiSessionService
+from google.adk.sessions import BaseSessionService
+from google.cloud import firestore
 from google.genai.types import Content, Part
 
 # モデル、サービス、コールバック関数
@@ -30,14 +33,33 @@ from models.agent_models import StorageObjectData
 from pydantic import ValidationError
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger, setup_logging
-from services.session_service import create_session_service
 
 # 設定
 from config import get_settings
 
-app = FastAPI()
 
-APP_NAME = "Coco-Ai"
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPIアプリケーションのライフサイクルイベントを管理する。
+    起動時にFirestoreクライアントを初期化し、アプリケーション全体で共有する。
+    終了時にクライアントを閉じる。
+    """
+    # アプリケーション起動時
+    db_client = firestore.AsyncClient()
+    app.state.db_client = db_client
+    logger.info("Firestore client initialized.")
+    yield
+    # アプリケーション終了時
+    client: firestore.AsyncClient = app.state.db_client
+    if client:
+        client.close()
+    logger.info("Firestore client closed.")
+
+
+app = FastAPI(lifespan=lifespan)
+
+APP_NAME = "coco-ai"  # A logical name for the application/agent.
 
 # ---------------------------
 # ログと設定の初期化
@@ -45,11 +67,6 @@ APP_NAME = "Coco-Ai"
 setup_logging()
 logger = get_logger(__name__)
 settings = get_settings()
-
-# ---------------------------
-# セッションサービスの初期化
-# ---------------------------
-session_service = create_session_service()
 
 
 # ---------------------------
@@ -104,7 +121,7 @@ async def _parse_cloudevent_payload(request: Request) -> dict:
 # ---------------------------------
 # ルートエージェントの構築
 # ---------------------------------
-def build_root_agent() -> SequentialAgent:
+def build_root_agent(db_client: firestore.AsyncClient) -> SequentialAgent:
     """
     エージェントの処理パイプラインを構築する。
 
@@ -123,7 +140,7 @@ def build_root_agent() -> SequentialAgent:
     explainer = ExplainerAgent()
     illustrator = IllustratorAgent()
     narrator = NarratorAgent()
-    result_writer = ResultWriterAgent()
+    result_writer = ResultWriterAgent(db_client=db_client)
 
     # イラスト生成と音声合成を並列実行するブランチ
     parallel_branch = ParallelAgent(
@@ -143,7 +160,9 @@ def build_root_agent() -> SequentialAgent:
 
 
 async def run_pipeline_in_background(
-    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+    event_data: dict,
+    session_service: BaseSessionService,
+    db_client: firestore.AsyncClient,
 ):
     """
     バックグラウンドで実行されるエージェントパイプラインのメインロジック。
@@ -157,7 +176,7 @@ async def run_pipeline_in_background(
     logger.info(f"[{job_id}] CloudEventを受信しました: {gcs_uri}")
     try:
         # セッションの初期状態を設定
-        initial_state = {"job_id": job_id, "gcs_uri": gcs_uri}
+        initial_data = {"state": {"job_id": job_id, "gcs_uri": gcs_uri}}
         session = await session_service.get_session(
             app_name=APP_NAME, user_id=user_id, session_id=job_id
         )
@@ -167,11 +186,11 @@ async def run_pipeline_in_background(
                 app_name=APP_NAME,
                 user_id=user_id,
                 session_id=job_id,
-                state=initial_state,
+                **initial_data,
             )
 
         # エージェントパイプラインを構築し、Runnerを初期化
-        root_agent = build_root_agent()
+        root_agent = build_root_agent(db_client)
         runner = Runner(
             agent=root_agent, app_name=APP_NAME, session_service=session_service
         )
@@ -196,44 +215,38 @@ async def run_pipeline_in_background(
         )
         # エラーが発生した場合、Firestoreのジョブステータスを更新
         try:
-            await update_job_status(job_id, "error", {"errorMessage": str(e)})
+            await update_job_status(
+                db_client, job_id, "error", {"errorMessage": str(e)}
+            )
         except Exception as db_error:
             logger.error(
                 f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
             )
 
 
-def _run_pipeline_sync_wrapper(
-    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
-):
-    """
-    run_pipeline_in_backgroundをasyncio.runで呼び出す同期ラッパー。
-    BackgroundTasksで安全に実行するために使用する。
-    """
-    try:
-        asyncio.run(run_pipeline_in_background(event_data, session_service))
-    except Exception as e:
-        logger.error(
-            f"[{event_data.get('job_id', '-')}] バックグラウンドパイプラインで予期せぬエラー: {e}",
-            exc_info=True,
-        )
-
-
 # ---------------------------------
 # Eventarcトリガーのエンドポイント
 # ---------------------------------
 @app.post("/invoke")
-async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
+async def invoke_pipeline(
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
     """
     Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
     リクエストを即座にACKし、重い処理はバックグラウンドで実行する。
     """
+    db_client: firestore.AsyncClient = request.app.state.db_client
+
+    session_service: BaseSessionService = get_session_service(db_client)
     # CloudEventペイロードを解析・検証
     # ヘルパー関数内で発生したHTTPExceptionはFastAPIによって自動的に伝播される
     event_data = await _parse_cloudevent_payload(request)
 
     # バックグラウンドでパイプライン処理を実行するようにスケジュール
-    background_tasks.add_task(_run_pipeline_sync_wrapper, event_data, session_service)
+    background_tasks.add_task(
+        run_pipeline_in_background, event_data, session_service, db_client
+    )
 
     # Eventarcに即座に成功応答（204 No Content）を返し、リトライを防ぐ
     return Response(status_code=status.HTTP_204_NO_CONTENT)

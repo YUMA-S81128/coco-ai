@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
+from google.cloud import firestore
 from google.genai.types import Content, Part
 from models.agent_models import (
     ExplanationResult,
@@ -26,14 +27,22 @@ class ResultWriterAgent(BaseAgent):
       収集・構造化し、Firestoreドキュメントを 'completed' ステータスと最終データで更新する。
     """
 
-    def __init__(self):
+    def __init__(self, db_client: firestore.AsyncClient):
         super().__init__(name="ResultWriterAgent")
         self._logger = get_logger(__name__)
+        self._db_client = db_client
 
     async def _run_async_impl(
         self, context: InvocationContext
     ) -> AsyncGenerator[Event, None]:
-        state = context.session.state or {}
+        # ParallelAgentの実行後、最新の状態を確実にするためにセッションを再取得する
+        session_service = context.session_service
+        session = await session_service.get_session(
+            app_name=context.session.app_name,
+            user_id=context.session.user_id,
+            session_id=context.session.id,
+        )
+        state = session.state if session else {}
         job_id = state.get("job_id")
         if not job_id:
             raise ValueError("セッション状態にjob_idが見つかりません。")
@@ -45,7 +54,9 @@ class ResultWriterAgent(BaseAgent):
             }
             error_message = f"ワークフローが失敗しました: {errors}"
             self._logger.error(f"[{job_id}] {error_message}")
-            await update_job_status(job_id, "error", {"errorMessage": error_message})
+            await update_job_status(
+                self._db_client, job_id, "error", {"errorMessage": error_message}
+            )
             # プロセス全体が失敗としてマークされるように例外を発生させる
             raise RuntimeError(error_message)
 
@@ -72,7 +83,9 @@ class ResultWriterAgent(BaseAgent):
                 finalAudioGcsPath=narration.final_audio_gcs_path,
             )
             # Firestoreに完了ステータスと最終データを書き込み
-            await update_job_status(job_id, "completed", final_data_model.model_dump())
+            await update_job_status(
+                self._db_client, job_id, "completed", final_data_model.model_dump()
+            )
 
             final_message = f"ジョブ {job_id} のワークフローが正常に完了しました。"
             self._logger.info(
@@ -90,6 +103,7 @@ class ResultWriterAgent(BaseAgent):
                 exc_info=True,
             )
             await update_job_status(
+                self._db_client,
                 job_id,
                 "error",
                 {"errorMessage": f"最終結果の処理に失敗しました: {e}"},

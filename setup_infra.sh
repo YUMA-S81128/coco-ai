@@ -220,6 +220,7 @@ CLOUDBUILD_ROLES=(
   "roles/run.admin"                   # Cloud Run サービスのデプロイとIAMポリシーの更新
   "roles/eventarc.admin"              # Eventarc トリガーの作成と管理
   "roles/iam.serviceAccountUser"      # Cloud Run/Functions にサービスアカウントを関連付ける
+  "roles/datastore.indexAdmin"        # Firestore のインデックスをデプロイするために必要
   "roles/firebaserules.admin"         # Firestore/Storage ルールのデプロイ
   "roles/cloudfunctions.developer"    # Cloud Functions のデプロイ
   "roles/firebasehosting.admin"       # Firebase Hosting のデプロイ
