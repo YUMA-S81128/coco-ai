@@ -148,7 +148,7 @@ class FirestoreSessionService(BaseSessionService):
         created_snap = await doc_ref.get()
         created_data = created_snap.to_dict()
         if created_data:
-            _normalize_timestamps(created_data)
+            created_data = _normalize_timestamps(created_data)
             # ADKのSessionモデルにないカスタムフィールドを検証前に削除
             created_data.pop("eventsCount", None)
             session = Session.model_validate(created_data)
@@ -274,14 +274,14 @@ class FirestoreSessionService(BaseSessionService):
             for doc in reversed(event_docs):
                 event_data = doc.to_dict()
                 if event_data:
-                    _normalize_timestamps(event_data)
-                    events.append(Event.model_validate(event_data))
+                    normalized_event_data = _normalize_timestamps(event_data)
+                    events.append(Event.model_validate(normalized_event_data))
 
         # FirestoreのデータとサブコレクションのイベントをマージしてSessionオブジェクトを構築
         data["events"] = events
 
         # 親ドキュメントのタイムスタンプも正規化
-        _normalize_timestamps(data)
+        data = _normalize_timestamps(data)
         # ADKのSessionモデルにないカスタムフィールドを検証前に削除
         data.pop("eventsCount", None)
         session = Session.model_validate(data)
@@ -418,7 +418,7 @@ class FirestoreSessionService(BaseSessionService):
             # このメソッドではイベントリストは読み込まない
             data["events"] = []
             # lastUpdateTimeなどのタイムスタンプフィールドを正規化
-            _normalize_timestamps(data)
+            data = _normalize_timestamps(data)
             # ADKのSessionモデルにないカスタムフィールドを検証前に削除
             data.pop("eventsCount", None)
             sessions.append(Session.model_validate(data))
