@@ -6,6 +6,7 @@ from google.adk.events import Event
 from google.cloud.texttospeech import SynthesisInput, TextToSpeechClient
 from google.genai.types import Content, Part
 from models.agent_models import NarrationResult
+from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 from services.storage_service import upload_blob_from_memory
 
@@ -60,10 +61,33 @@ class NarratorAgent(BaseProcessingAgent):
 
             self._logger.info(f"[{job_id}] 音声合成が完了しました: {gcs_path}")
 
-            # 結果をセッション状態に保存
             result = NarrationResult(job_id=job_id, final_audio_gcs_path=gcs_path)
+
+            # メモリ上のセッション状態をまず更新
             context.session.state["narration"] = result
 
+            # update_sessionを直接呼び出し、状態の永続化を待つ
+            try:
+                self._logger.info(f"[{job_id}] ナレーション結果をセッションに永続化します...")
+                session_service = context.session_service
+                assert isinstance(session_service, FirestoreSessionService)
+
+                updated_session = await session_service.update_session(
+                    session_id=context.session.id,
+                    state_delta={"narration": result},
+                    app_name=context.session.app_name,
+                    user_id=context.session.user_id,
+                )
+                if not updated_session:
+                    raise RuntimeError("セッションの更新に失敗しました (update_session returned None)")
+                self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
+            except Exception as e:
+                self._logger.error(
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}", exc_info=True
+                )
+                raise
+
+            # 状態更新を含まない、単純な完了イベントをyieldする
             yield Event(
                 author=self.name,
                 content=Content(
