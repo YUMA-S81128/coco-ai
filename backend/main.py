@@ -1,5 +1,6 @@
 # 各種エージェント
-import asyncio
+
+from functools import lru_cache
 
 from agents.explainer_agent.agent import ExplainerAgent
 from agents.illustrator_agent.agent import IllustratorAgent
@@ -12,6 +13,7 @@ from callback import after_agent_callback, before_agent_callback
 from cloudevents.http import from_http
 from fastapi import (
     BackgroundTasks,
+    Depends,
     FastAPI,
     HTTPException,
     Request,
@@ -22,7 +24,8 @@ from fastapi import (
 # ADK & GenAI SDK
 from google.adk.agents import ParallelAgent, SequentialAgent
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService, VertexAiSessionService
+from google.adk.sessions import BaseSessionService
+from google.cloud import firestore
 from google.genai.types import Content, Part
 
 # モデル、サービス、コールバック関数
@@ -37,7 +40,7 @@ from config import get_settings
 
 app = FastAPI()
 
-APP_NAME = "Coco-Ai"
+APP_NAME = "coco-ai"  # A logical name for the application/agent.
 
 # ---------------------------
 # ログと設定の初期化
@@ -46,10 +49,20 @@ setup_logging()
 logger = get_logger(__name__)
 settings = get_settings()
 
+
 # ---------------------------
-# セッションサービスの初期化
+# 依存性注入用の関数
 # ---------------------------
-session_service = create_session_service()
+@lru_cache
+def get_session_service() -> BaseSessionService:
+    """セッションサービスのシングルトンインスタンスを生成・取得する。"""
+    return create_session_service()
+
+
+@lru_cache
+def get_firestore_client() -> firestore.Client:
+    """Firestore Clientのシングルトンインスタンスを生成・取得する。"""
+    return firestore.Client()
 
 
 # ---------------------------
@@ -143,7 +156,9 @@ def build_root_agent() -> SequentialAgent:
 
 
 async def run_pipeline_in_background(
-    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
+    event_data: dict,
+    session_service: BaseSessionService,
+    db_client: firestore.Client,
 ):
     """
     バックグラウンドで実行されるエージェントパイプラインのメインロジック。
@@ -196,34 +211,25 @@ async def run_pipeline_in_background(
         )
         # エラーが発生した場合、Firestoreのジョブステータスを更新
         try:
-            await update_job_status(job_id, "error", {"errorMessage": str(e)})
+            await update_job_status(
+                db_client, job_id, "error", {"errorMessage": str(e)}
+            )
         except Exception as db_error:
             logger.error(
                 f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
             )
 
 
-def _run_pipeline_sync_wrapper(
-    event_data: dict, session_service: InMemorySessionService | VertexAiSessionService
-):
-    """
-    run_pipeline_in_backgroundをasyncio.runで呼び出す同期ラッパー。
-    BackgroundTasksで安全に実行するために使用する。
-    """
-    try:
-        asyncio.run(run_pipeline_in_background(event_data, session_service))
-    except Exception as e:
-        logger.error(
-            f"[{event_data.get('job_id', '-')}] バックグラウンドパイプラインで予期せぬエラー: {e}",
-            exc_info=True,
-        )
-
-
 # ---------------------------------
 # Eventarcトリガーのエンドポイント
 # ---------------------------------
 @app.post("/invoke")
-async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
+async def invoke_pipeline(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session_service: BaseSessionService = Depends(get_session_service),
+    db_client: firestore.Client = Depends(get_firestore_client),
+):
     """
     Cloud StorageへのファイルアップロードをトリガーにEventarcから呼び出されるメインエンドポイント。
     リクエストを即座にACKし、重い処理はバックグラウンドで実行する。
@@ -233,7 +239,11 @@ async def invoke_pipeline(request: Request, background_tasks: BackgroundTasks):
     event_data = await _parse_cloudevent_payload(request)
 
     # バックグラウンドでパイプライン処理を実行するようにスケジュール
-    background_tasks.add_task(_run_pipeline_sync_wrapper, event_data, session_service)
+    # 依存性注入されたsession_serviceインスタンスをタスクに渡す
+    # FastAPIは非同期関数を直接扱えるため、ラッパーは不要
+    background_tasks.add_task(
+        run_pipeline_in_background, event_data, session_service, db_client
+    )
 
     # Eventarcに即座に成功応答（204 No Content）を返し、リトライを防ぐ
     return Response(status_code=status.HTTP_204_NO_CONTENT)

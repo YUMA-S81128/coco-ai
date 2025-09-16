@@ -59,8 +59,8 @@ steps:
         if [[ "${_DEPLOY_TARGET}" == "all" || "${_DEPLOY_TARGET}" == "rules" ]]; then
           echo ">>> Firebase CLI version:"
           firebase --version || true
-          echo ">>> Deploying Firestore and Storage rules..."
-          firebase deploy --only firestore:rules,storage --project=${PROJECT_ID}
+          echo ">>> Deploying Firestore (rules, indexes) and Storage rules..."
+          firebase deploy --only firestore,storage --project=${PROJECT_ID}
         else
           echo ">>> Skipping Firebase Rules deployment for target: ${_DEPLOY_TARGET}"
         fi
@@ -183,4 +183,4 @@ substitutions:
   _AUDIO_UPLOAD_BUCKET: "coco-ai-input-audio"
   _PROCESSED_AUDIO_BUCKET: "coco-ai-output-narrations"
   _GENERATED_IMAGE_BUCKET: "coco-ai-output-images"
-  _SESSION_SERVICE: "vertex"
+  _SESSION_SERVICE: "firestore"
