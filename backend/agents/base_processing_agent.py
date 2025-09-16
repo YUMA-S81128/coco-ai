@@ -28,12 +28,12 @@ class BaseProcessingAgent(BaseAgent):
             ValueError: job_id または explanation_data がセッション状態にない場合。
         """
         # ParallelAgentは最新のセッション状態を自動的に伝播しないため、
-        # contextのrunnerからsession_serviceを取得し、手動で最新のセッションを読み込む。
-        session_service = context.runner.session_service
+        # contextから直接session_serviceを取得し、手動で最新のセッションを読み込む。
+        session_service = context.session_service
         session = await session_service.get_session(
             app_name=context.session.app_name,
             user_id=context.session.user_id,
-            session_id=context.session.session_id,
+            session_id=context.session.id,
         )
         state = session.state if session else {}
 
