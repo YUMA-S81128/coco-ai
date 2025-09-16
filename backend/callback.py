@@ -1,3 +1,8 @@
+# ADKコールバックはFastAPIのDIシステムの外で実行されるため、
+# 必要な依存関係をここで直接取得します。
+# lru_cacheパターンを使用することで、
+# パイプライン実行中にインスタンスが再生成されるのを防ぎます。
+from dependencies import get_firestore_client
 from google.adk.agents.callback_context import CallbackContext
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger
@@ -43,7 +48,8 @@ async def before_agent_callback(
         if status:
             try:
                 # Firestoreへのベストエフォート更新
-                await update_job_status(job_id, status)
+                db_client = get_firestore_client()
+                await update_job_status(db_client, job_id, status)
             except Exception as e:
                 logger.warning(
                     f"[{job_id}] Firestoreステータスを'{status}'に更新できませんでした: {e}"
@@ -119,10 +125,4 @@ async def after_agent_callback(
     else:
         logger.info(f"[{job_id}] エージェント'{agent_name}'が完了しました。")
 
-    return None
-
-    # --- フォールバック ---
-    logger.info(
-        f"[{job_id}] after_agent_callback: エージェント'{agent_name}'に対する特別な処理はありません"
-    )
     return None

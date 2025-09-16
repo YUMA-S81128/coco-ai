@@ -9,7 +9,7 @@ class SessionService(str, Enum):
     """セッションサービスの種別を定義するEnum"""
 
     inmemory = "inmemory"
-    vertex = "vertex"
+    firestore = "firestore"
 
 
 class Settings(BaseSettings):

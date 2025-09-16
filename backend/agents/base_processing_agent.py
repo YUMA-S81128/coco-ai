@@ -11,11 +11,12 @@ class BaseProcessingAgent(BaseAgent):
     検証するための共通メソッドを提供する。これにより、サブクラスでの定型コードを削減する。
     """
 
-    def _get_common_data(
+    async def _get_common_data(
         self, context: InvocationContext
     ) -> tuple[str, ExplanationOutput]:
         """
         セッション状態から job_id と explanation_data を取得し、検証する。
+        ParallelAgent 内で実行される場合、最新のセッション状態を再取得する必要がある。
 
         Args:
             context: セッション状態を含む呼び出しコンテキスト。
@@ -26,8 +27,18 @@ class BaseProcessingAgent(BaseAgent):
         Raises:
             ValueError: job_id または explanation_data がセッション状態にない場合。
         """
-        job_id = context.session.state.get("job_id")
-        explanation_data = context.session.state.get("explanation_data")
+        # ParallelAgentは最新のセッション状態を自動的に伝播しないため、
+        # contextから直接session_serviceを取得し、手動で最新のセッションを読み込む。
+        session_service = context.session_service
+        session = await session_service.get_session(
+            app_name=context.session.app_name,
+            user_id=context.session.user_id,
+            session_id=context.session.id,
+        )
+        state = session.state if session else {}
+
+        job_id = state.get("job_id")
+        explanation_data = state.get("explanation_data")
 
         if not job_id or not explanation_data:
             raise ValueError(
