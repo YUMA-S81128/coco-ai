@@ -121,7 +121,7 @@ async def _parse_cloudevent_payload(request: Request) -> dict:
 # ---------------------------------
 # ルートエージェントの構築
 # ---------------------------------
-def build_root_agent() -> SequentialAgent:
+def build_root_agent(db_client: firestore.AsyncClient) -> SequentialAgent:
     """
     エージェントの処理パイプラインを構築する。
 
@@ -140,7 +140,7 @@ def build_root_agent() -> SequentialAgent:
     explainer = ExplainerAgent()
     illustrator = IllustratorAgent()
     narrator = NarratorAgent()
-    result_writer = ResultWriterAgent()
+    result_writer = ResultWriterAgent(db_client=db_client)
 
     # イラスト生成と音声合成を並列実行するブランチ
     parallel_branch = ParallelAgent(
@@ -190,7 +190,7 @@ async def run_pipeline_in_background(
             )
 
         # エージェントパイプラインを構築し、Runnerを初期化
-        root_agent = build_root_agent()
+        root_agent = build_root_agent(db_client)
         runner = Runner(
             agent=root_agent, app_name=APP_NAME, session_service=session_service
         )
