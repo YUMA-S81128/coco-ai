@@ -78,6 +78,18 @@ async def after_agent_callback(
     job_id = state.get("job_id", "unknown")
     logger.info(f"[{job_id}] エージェントを終了します: {agent_name}")
 
+    # ExplainerAgentの完了後、必須の出力がstateに存在するかを検証する
+    if agent_name == "ExplainerAgent":
+        if "explanation_data" not in state:
+            error_msg = "ExplainerAgent finished but 'explanation_data' is missing from session state!"
+            logger.error(f"[{job_id}] {error_msg}")
+            if state_obj:
+                state_obj["workflow_failed"] = True
+                # この特定のエラーを保存して、ResultWriterAgentが拾えるようにする
+                state_obj[f"{agent_name}_error"] = error_msg
+            # この特定のエラーを処理した後は早期に終了する
+            return
+
     # ADKのParallelAgentは、サブエージェントからの例外を自動的にキャッチし、
     # セッションステートの'parallel_errors'キーに保存します。
     if agent_name == "IllustrateAndNarrate":

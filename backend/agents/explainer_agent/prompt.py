@@ -42,6 +42,7 @@ SYSTEM_INSTRUCTION_PROMPT = """
 
 【出力形式】
 - 必ず JSON のみを返す。キー名・型・必須性はスキーマに従う。
+- `clarification_question` 以外、すべてのフィールドは必須です。
 
 書き起こしテキスト:
 {transcribed_text}
