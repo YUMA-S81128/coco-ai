@@ -40,7 +40,7 @@ class IllustratorAgent(BaseProcessingAgent):
         """
         プロンプトからイラストを生成し、Cloud Storageに保存する。
         """
-        job_id, explanation = self._get_common_data(context)
+        job_id, explanation = await self._get_common_data(context)
         prompt = explanation.illustration_prompt
         self._logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 

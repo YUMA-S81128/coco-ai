@@ -43,6 +43,14 @@ async def before_agent_callback(
     job_id = state.get("job_id", "unknown")
     logger.info(f"[{job_id}] エージェントを開始する: {agent_name}")
 
+    # 並列ブランチのエージェントが開始する直前のstateをダンプする
+    if agent_name in ["IllustratorAgent", "NarratorAgent"]:
+        import json
+        logger.info(
+            f"[{job_id}] State before starting {agent_name}: "
+            f"{json.dumps(state, ensure_ascii=False, indent=2)}"
+        )
+
     if agent_name and job_id:
         status = AGENT_STATUS_MAP.get(agent_name)
         if status:

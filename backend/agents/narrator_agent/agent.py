@@ -33,7 +33,7 @@ class NarratorAgent(BaseProcessingAgent):
         """
         SSMLテキストから音声を生成し、Cloud Storageに保存する。
         """
-        job_id, explanation = self._get_common_data(context)
+        job_id, explanation = await self._get_common_data(context)
         ssml_text = explanation.child_explanation_ssml
 
         self._logger.info(f"[{job_id}] 音声合成を開始します (SSML): {ssml_text}")
