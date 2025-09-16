@@ -62,7 +62,7 @@ class NarratorAgent(BaseProcessingAgent):
 
             # 結果をセッション状態に保存
             result = NarrationResult(job_id=job_id, final_audio_gcs_path=gcs_path)
-            context.session.state["narration"] = result.model_dump()
+            context.session.state["narration"] = result
 
             yield Event(
                 author=self.name,

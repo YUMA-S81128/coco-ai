@@ -73,11 +73,13 @@ class IllustratorAgent(BaseProcessingAgent):
                 job_id=job_id,
                 image_gcs_path=output_gcs_uri,
             )
-            context.session.state["illustration"] = result.model_dump()
+            context.session.state["illustration"] = result
+
             yield Event(
                 author=self.name,
                 content=Content(parts=[Part(text="イラストの生成に成功しました。")]),
             )
+
         except Exception as e:
             self._logger.error(
                 f"[{job_id}] Imagen APIでエラーが発生しました: {e}", exc_info=True

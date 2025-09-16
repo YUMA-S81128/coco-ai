@@ -11,6 +11,7 @@ from google.adk.events import Event
 from google.adk.sessions import BaseSessionService, Session
 from google.api_core import exceptions as google_exceptions
 from google.cloud import firestore
+from pydantic import BaseModel
 from services.logging_service import get_logger
 
 logger = get_logger(__name__)
@@ -350,6 +351,21 @@ class FirestoreSessionService(BaseSessionService):
                     1
                 ),  # イベント数をアトミックにインクリメント
             }
+
+            # イベントのアクションにstate_deltaが含まれている場合、それを親セッションのstateにマージする
+            if event.actions and event.actions.state_delta:
+                for key, value in event.actions.state_delta.items():
+                    if INVALID_KEY_CHARS.search(key):
+                        raise ValueError(
+                            f"Invalid character in state_delta key: '{key}'"
+                        )
+                    # Pydanticモデルを辞書に変換してから保存
+                    if isinstance(value, BaseModel):
+                        update_data[f"state.{key}"] = value.model_dump(
+                            by_alias=True, exclude_none=True
+                        )
+                    else:
+                        update_data[f"state.{key}"] = value
 
             transaction.update(session_ref, update_data)
 

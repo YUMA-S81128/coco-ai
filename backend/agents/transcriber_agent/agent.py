@@ -63,18 +63,13 @@ class TranscriberAgent(BaseAgent):
 
             self._logger.info(f"[{job_id}] 書き起こしテキスト: {transcript}")
 
-            # ExplainerAgentのプロンプトテンプレート用に、書き起こしたテキストを保存する。
-            context.session.state["transcribed_text"] = transcript
-
-            # 最終的なResultWriterAgent用に、構造化された結果オブジェクトを保存する。
+            # 最終的なResultWriterAgent用に、構造化された結果オブジェクトを作成する。
             result = TranscriptionResult(
                 job_id=job_id, gcs_uri=gcs_uri, text=transcript
             )
-            context.session.state["transcription"] = result.model_dump()
+            context.session.state["transcribed_text"] = transcript
+            context.session.state["transcription"] = result
 
-            # 後続のエージェントは、session.stateとプロンプトテンプレート({transcribed_text})を介して
-            # テキストを受け取ります。会話履歴に生テキストが影響を与えないように、
-            # このエージェントは単純な完了通知のみを返す。
             yield Event(
                 author=self.name,
                 content=Content(
