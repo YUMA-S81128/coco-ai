@@ -11,6 +11,7 @@ from google.adk.events import Event
 from google.adk.sessions import BaseSessionService, Session
 from google.api_core import exceptions as google_exceptions
 from google.cloud import firestore
+from pydantic import BaseModel
 from services.logging_service import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 UTC = timezone.utc
 
 # Firestoreのフィールドパスで無効な文字を検出するための正規表現
-INVALID_KEY_CHARS = re.compile(r"[.$/\[\]]")
+INVALID_KEY_CHARS = re.compile(r"[.$/[\\]]")
 
 
 def _to_epoch(dt: datetime) -> float:
@@ -100,7 +101,9 @@ class FirestoreSessionService(BaseSessionService):
     """
 
     def __init__(
-        self, db_client: firestore.AsyncClient, collection_name: str = "adk_sessions"
+        self,
+        db_client: firestore.AsyncClient,
+        collection_name: str = "adk_sessions",
     ):
         # 外部から渡された共有クライアントを使用
         self._db = db_client
@@ -207,7 +210,13 @@ class FirestoreSessionService(BaseSessionService):
         for key, value in state_delta.items():
             if INVALID_KEY_CHARS.search(key):
                 raise ValueError(f"Invalid character in state_delta key: '{key}'")
-            update_data[f"state.{key}"] = value
+            # Pydanticモデルを辞書に変換してから保存
+            if isinstance(value, BaseModel):
+                update_data[f"state.{key}"] = value.model_dump(
+                    by_alias=True, exclude_none=True
+                )
+            else:
+                update_data[f"state.{key}"] = value
 
         transaction = self._db.transaction()
 
@@ -301,68 +310,67 @@ class FirestoreSessionService(BaseSessionService):
     async def append_event(self, session: Session, event: Event) -> Event:
         """
         セッション履歴にイベントをアトミックに追加し、イベントのアクションにあるstate_deltaを適用します。
-        Firestoreトランザクションを使用して、同時更新による競合を防ぎます。
+        state_deltaの適用は、実績のあるupdate_sessionメソッドに委譲することで、競合を防ぎます。
         """
         session_ref = self._collection.document(session.id)
+        state_delta = event.actions.state_delta if event.actions else None
 
         # イベントデータにサーバータイムスタンプを追加
         event_data = event.model_dump(by_alias=True, exclude_none=True)
         event_data["createdAt"] = firestore.SERVER_TIMESTAMP
 
-        # イベントの冪等性（何度実行しても結果が同じになる性質）を保証するため、決定論的なIDを生成する
-        # タイムスタンプなど毎回変わる値はハッシュ計算から除外する
+        # イベントの冪等性IDを生成
         payload_for_hash = {
             k: v for k, v in event_data.items() if k not in ["id", "createdAt"]
         }
-        # より安定したJSON文字列を生成
         payload_json = json.dumps(
-            payload_for_hash, sort_keys=True, separators=(",", ":"), default=str
+            payload_for_hash, sort_keys=True, separators=((",", ":")), default=str
         )
         event_id = event.id or hashlib.sha256(payload_json.encode()).hexdigest()
         event_ref = session_ref.collection("events").document(event_id)
-        # ドキュメントの中にもIDを保存してデバッグを容易にする
         event_data["id"] = event_id
 
+        # トランザクションでイベントドキュメントの書き込みとカウンタの更新のみを行う
         transaction = self._db.transaction()
 
         @firestore.async_transactional
-        async def update_in_transaction(transaction: firestore.AsyncTransaction):
-            # 1. 親セッションの存在を確認
-            snap = await session_ref.get(transaction=transaction)
-            if not snap.exists:
-                raise FileNotFoundError(
-                    f"Session {session.id} not found in transaction."
-                )
-
-            # 2. 【重要】イベントが既に存在するか確認し、冪等性を保証する
-            existing_event_snap = await event_ref.get(transaction=transaction)
-            if existing_event_snap.exists:
-                # イベントが既に存在する場合（再試行など）、何もせず正常終了
+        async def write_event_in_transaction(transaction: firestore.AsyncTransaction):
+            snap = await event_ref.get(transaction=transaction)
+            if snap.exists:
                 logger.info("Event %s already exists, skipping creation.", event_id)
                 return
 
-            # 3. イベントが存在しない場合のみ、ドキュメントを作成し、親を更新する
             transaction.set(event_ref, event_data)
+            transaction.update(
+                session_ref,
+                {
+                    "eventsCount": firestore.Increment(1),
+                    "lastUpdateTime": firestore.SERVER_TIMESTAMP,
+                },
+            )
 
-            update_data = {
-                "lastUpdateTime": firestore.SERVER_TIMESTAMP,
-                "eventsCount": firestore.Increment(
-                    1
-                ),  # イベント数をアトミックにインクリメント
-            }
-
-            transaction.update(session_ref, update_data)
-
-        # レビュー指摘対応: 堅牢化のため、リトライラッパー経由でトランザクションを実行
+        # イベント書き込みトランザクションを実行
         await _run_with_retries(
-            update_in_transaction, transaction, log_context={"session_id": session.id}
+            write_event_in_transaction,
+            transaction,
+            log_context={"session_id": session.id, "event_id": event_id},
         )
+
+        # state_deltaが存在する場合、別のupdate_session呼び出しで状態を更新する
+        # これにより、LlmAgentの状態更新とロジックが統一され、競合が解消される
+        if state_delta:
+            logger.debug("Applying state_delta via update_session for %s", session.id)
+            await self.update_session(
+                session_id=session.id,
+                state_delta=state_delta,
+                app_name=session.app_name,
+                user_id=session.user_id,
+            )
 
         # 呼び出し元がIDを使えるように、返すイベントオブジェクトにも安全にIDをセットする
         try:
             event.id = event_id
         except Exception:
-            # Eventオブジェクトがイミュータブルな場合に備え、新しいインスタンスを作成
             logger.debug("Event object is immutable, creating a new instance with id.")
             ev_data = event.model_dump(by_alias=True, exclude_none=True)
             ev_data["id"] = event_id
