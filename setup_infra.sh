@@ -61,6 +61,24 @@ EOF
 gcloud storage buckets update "gs://${AUDIO_UPLOAD_BUCKET}" --cors-file="${CORS_CONFIG_FILE}"
 rm "${CORS_CONFIG_FILE}" # 一時ファイルを削除
 
+echo "--- 画像表示用バケットにCORS設定を適用中 ---"
+# フロントエンド（Firebase Hosting）からの画像読み込みを許可するためのCORS設定
+IMAGE_CORS_CONFIG_FILE=$(mktemp)
+cat > "${IMAGE_CORS_CONFIG_FILE}" <<EOF
+[
+  {
+    "origin": [
+      "https://${GOOGLE_CLOUD_PROJECT}.web.app"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]
+EOF
+
+gcloud storage buckets update "gs://${GENERATED_IMAGE_BUCKET}" --cors-file="${IMAGE_CORS_CONFIG_FILE}"
+rm "${IMAGE_CORS_CONFIG_FILE}" # 一時ファイルを削除
+
 echo "--- Secret Managerのシークレットを確認・作成中 ---"
 # Cloud Buildでフロントエンドのビルドに必要なFirebase設定キーのリスト
 # これらのキーに対応するシークレットを作成します。
@@ -152,10 +170,12 @@ gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/storage.objectCreator" >/dev/null
 
-# 説明画像用バケットへの書き込み権限
+# 説明画像用バケットへのオブジェクトユーザー権限（オブジェクトの移動・削除を含む）
 gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator" >/dev/null
+  --role="roles/storage.objectUser" >/dev/null
+
+
 
 echo "--- Functions用サービスアカウントに必要なIAMロールを付与中 ---"
 # FunctionsがFirestoreにジョブを登録するための権限

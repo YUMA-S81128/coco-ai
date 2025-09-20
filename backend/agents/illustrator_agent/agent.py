@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from agents.base_processing_agent import BaseProcessingAgent
@@ -7,6 +8,7 @@ from google.adk.events import Event
 from google.genai import types
 from google.genai.types import Content, Part
 from models.agent_models import IllustrationResult
+from services import storage_service
 from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 
@@ -42,36 +44,62 @@ class IllustratorAgent(BaseProcessingAgent):
         プロンプトからイラストを生成し、Cloud Storageに保存する。
         """
         job_id, explanation = await self._get_common_data(context)
+        user_id = context.session.user_id
         prompt = explanation.illustration_prompt
         self._logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 
-        # 保存先のGCSパスを生成
-        destination_blob_name = f"{job_id}-{uuid4()}.png"
-        output_gcs_uri = (
-            f"gs://{self._settings.generated_image_bucket}/{destination_blob_name}"
+        # 最終的な保存先のファイル名を定義
+        destination_blob_name = f"{user_id}/{job_id}/{uuid4()}.png"
+
+        # APIへ渡す一時的な出力先「ディレクトリ」を定義
+        output_gcs_directory = (
+            f"gs://{self._settings.generated_image_bucket}/temp_generations/{job_id}/"
         )
 
         # 画像生成の設定
         generate_config = types.GenerateImagesConfig(
-            output_gcs_uri=output_gcs_uri, **GENERATE_CONFIG_PARAMS
+            output_gcs_uri=output_gcs_directory, **GENERATE_CONFIG_PARAMS
         )
 
         try:
             # Imagenモデルを呼び出して画像を生成
-            images = self._client.models.generate_images(
+            response = self._client.models.generate_images(
                 model=self._model, prompt=prompt, config=generate_config
             )
 
-            if not images:
+            self._logger.info(f"debug (original response): {response}")
+
+            if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
 
+            generated_image = response.generated_images[0]
+            if not generated_image.image or not generated_image.image.gcs_uri:
+                raise ValueError("生成された画像にGCS URIが含まれていません。")
+
+            # 画像は一時的なGCSパスに保存される
+            temp_gcs_uri = generated_image.image.gcs_uri
             self._logger.info(
-                f"[{job_id}] イラストをGCSに保存しました: {output_gcs_uri}"
+                f"[{job_id}] イラストを一時GCSパスに保存しました: {temp_gcs_uri}"
+            )
+
+            # 一時パスをパースしてバケットとBlob名を取得
+            parsed_uri = urlparse(temp_gcs_uri)
+            temp_bucket_name = parsed_uri.netloc
+            temp_blob_name = parsed_uri.path.lstrip("/")
+
+            # GCS内でファイルを目的のパスに移動
+            final_gcs_uri = await storage_service.rename_blob(
+                bucket_name=temp_bucket_name,
+                blob_name=temp_blob_name,
+                new_name=destination_blob_name,
+            )
+            self._logger.info(
+                f"[{job_id}] イラストを目的のGCSパスに移動しました: {final_gcs_uri}"
             )
 
             result = IllustrationResult(
                 job_id=job_id,
-                image_gcs_path=output_gcs_uri,
+                image_gcs_path=final_gcs_uri,
             )
 
             # メモリ上のセッション状態をまず更新
@@ -79,7 +107,9 @@ class IllustratorAgent(BaseProcessingAgent):
 
             # update_sessionを直接呼び出し、状態の永続化を待つ
             try:
-                self._logger.info(f"[{job_id}] イラスト結果をセッションに永続化します...")
+                self._logger.info(
+                    f"[{job_id}] イラスト結果をセッションに永続化します..."
+                )
                 session_service = context.session_service
                 assert isinstance(session_service, FirestoreSessionService)
 
@@ -90,11 +120,14 @@ class IllustratorAgent(BaseProcessingAgent):
                     user_id=context.session.user_id,
                 )
                 if not updated_session:
-                    raise RuntimeError("セッションの更新に失敗しました (update_session returned None)")
+                    raise RuntimeError(
+                        "セッションの更新に失敗しました (update_session returned None)"
+                    )
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
             except Exception as e:
                 self._logger.error(
-                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}", exc_info=True
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
+                    exc_info=True,
                 )
                 raise
 
