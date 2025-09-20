@@ -131,16 +131,15 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     final conversationContent = _buildConversationContent(appState);
 
     if (status == AppStatus.initial || status == AppStatus.recording) {
-      // マイクボタン表示時はStackで重ねる
-      return Stack(
+      // 初期状態ではコンテンツとマイクボタンを横並びに配置
+      return Row(
         children: [
-          conversationContent,
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40.0),
-              child: _buildMicButton(appState, appNotifier),
-            ),
+          Expanded(
+            child: conversationContent,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildMicButton(appState, appNotifier),
           ),
         ],
       );
@@ -177,49 +176,25 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   /// 初期状態または録音中のUIを構築する
   Widget _buildInitialOrRecordingUI() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useHorizontalLayout = constraints.maxHeight < 250;
-
-        final images = Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(AppAssets.coco, width: 80),
-            const SizedBox(width: 40),
-            Image.asset(AppAssets.ai, width: 80),
-          ],
-        );
-
-        if (useHorizontalLayout) {
-          return Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                images,
-                Flexible(
-                  child: _buildTextWidget(
-                    'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-                  ),
-                ),
-              ],
-            ),
-          );
-        } else {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                images,
-                const SizedBox(height: 24),
-                _buildTextWidget(
-                  'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-                  useNewline: true,
-                ),
-              ],
-            ),
-          );
-        }
-      },
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(AppAssets.coco, width: 80),
+              const SizedBox(width: 40),
+              Image.asset(AppAssets.ai, width: 80),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildTextWidget(
+            'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+            useNewline: true,
+          ),
+        ],
+      ),
     );
   }
 
