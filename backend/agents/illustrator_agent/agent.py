@@ -64,10 +64,9 @@ class IllustratorAgent(BaseProcessingAgent):
             )
 
             # --- デバッグログ ---
-            self._logger.info(f"デバッグ (response object): {dir(response)}")
             if response and response.generated_images:
                 self._logger.info(
-                    f"デバッグ (first image object): {dir(response.generated_images[0])}"
+                    f"デバッグ (image.image object): {dir(response.generated_images[0].image)}"
                 )
             # --- デバッグログ終 ---
 
