@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from agents.base_processing_agent import BaseProcessingAgent
@@ -7,6 +8,7 @@ from google.adk.events import Event
 from google.genai import types
 from google.genai.types import Content, Part
 from models.agent_models import IllustrationResult
+from services import storage_service
 from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 
@@ -63,23 +65,33 @@ class IllustratorAgent(BaseProcessingAgent):
                 model=self._model, prompt=prompt, config=generate_config
             )
 
-            # --- デバッグログ ---
-            if response and response.generated_images:
-                self._logger.info(
-                    f"デバッグ (image.image object): {dir(response.generated_images[0].image)}"
-                )
-            # --- デバッグログ終 ---
-
             if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
 
-            self._logger.info(
-                f"[{job_id}] イラストをGCSに保存しました: {output_gcs_uri}"
+            generated_image = response.generated_images[0]
+            if not generated_image.image or not generated_image.image.gcs_uri:
+                raise ValueError("生成された画像にGCS URIが含まれていません。")
+
+            # 画像は一時的なGCSパスに保存される
+            temp_gcs_uri = generated_image.image.gcs_uri
+            self._logger.info(f"[{job_id}] イラストを一時GCSパスに保存しました: {temp_gcs_uri}")
+
+            # 一時パスをパースしてバケットとBlob名を取得
+            parsed_uri = urlparse(temp_gcs_uri)
+            temp_bucket_name = parsed_uri.netloc
+            temp_blob_name = parsed_uri.path.lstrip("/")
+
+            # GCS内でファイルを目的のパスに移動
+            final_gcs_uri = await storage_service.rename_blob(
+                bucket_name=temp_bucket_name,
+                blob_name=temp_blob_name,
+                new_name=destination_blob_name,
             )
+            self._logger.info(f"[{job_id}] イラストを目的のGCSパスに移動しました: {final_gcs_uri}")
 
             result = IllustrationResult(
                 job_id=job_id,
-                image_gcs_path=output_gcs_uri,
+                image_gcs_path=final_gcs_uri,
             )
 
             # メモリ上のセッション状態をまず更新
