@@ -18,6 +18,7 @@ class HomeScreen extends ConsumerWidget {
     const breakpoint = 600;
 
     final isProcessing = appState.status == AppStatus.processing;
+    final isInitial = appState.status == AppStatus.initial;
 
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
@@ -44,14 +45,18 @@ class HomeScreen extends ConsumerWidget {
                       'リフレッシュ',
                       style: TextStyle(color: Colors.black54),
                     ),
-                    onPressed: isProcessing ? null : () => appNotifier.reset(),
+                    onPressed: (isInitial || isProcessing)
+                        ? null
+                        : () => appNotifier.reset(),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.black54,
                     ),
                   )
                 : IconButton(
                     icon: const Icon(Icons.refresh, color: Colors.black54),
-                    onPressed: isProcessing ? null : () => appNotifier.reset(),
+                    onPressed: (isInitial || isProcessing)
+                        ? null
+                        : () => appNotifier.reset(),
                     tooltip: '新しい質問をはじめる',
                   ),
           ),
@@ -186,49 +191,45 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     }
 
     // 結果表示
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 150), // マイクボタンとの重なりを避ける
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        children: [
-          // ユーザーの質問（書き起こし）
-          if (job?.transcribedText != null && job!.transcribedText!.isNotEmpty)
-            _buildChatBubble(
-              text: job.transcribedText!,
-              character: Character.coco,
-            ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40), // 下部の余白を調整
+      children: [
+        // ユーザーの質問（書き起こし）
+        if (job?.transcribedText != null && job!.transcribedText!.isNotEmpty)
+          _buildChatBubble(
+            text: job.transcribedText!,
+            character: Character.coco,
+          ),
 
-          // AIの回答（説明文）と音声再生ボタン
-          if (job?.childExplanation != null &&
-              job!.childExplanation!.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _buildChatBubble(
-                  text: job.childExplanation!,
-                  character: Character.ai,
+        // AIの回答（説明文）と音声再生ボタン
+        if (job?.childExplanation != null && job!.childExplanation!.isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildChatBubble(
+                text: job.childExplanation!,
+                character: Character.ai,
+              ),
+              if (job.finalAudioGcsPath != null &&
+                  job.finalAudioGcsPath!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 62),
+                  child: _buildAudioPlayer(job.finalAudioGcsPath!),
                 ),
-                if (job.finalAudioGcsPath != null &&
-                    job.finalAudioGcsPath!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, right: 62),
-                    child: _buildAudioPlayer(job.finalAudioGcsPath!),
-                  ),
-              ],
-            ),
+            ],
+          ),
 
-          // 生成された画像
-          if (job?.imageGcsPath != null && job!.imageGcsPath!.isNotEmpty)
-            _buildImage(job.imageGcsPath!),
+        // 生成された画像
+        if (job?.imageGcsPath != null && job!.imageGcsPath!.isNotEmpty)
+          _buildImage(job.imageGcsPath!),
 
-          // 処理中のインジケーター
-          if (status == AppStatus.processing)
-            const Padding(
-              padding: EdgeInsets.only(top: 20),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-        ],
-      ),
+        // 処理中のインジケーター
+        if (status == AppStatus.processing)
+          const Padding(
+            padding: EdgeInsets.only(top: 20),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
     );
   }
 
