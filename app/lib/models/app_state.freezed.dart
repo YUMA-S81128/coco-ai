@@ -14,7 +14,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AppState {
 
- AppStatus get status; String? get resultText; String? get imageUrl; String? get errorMessage;
+/// 現在のアプリの状態
+ AppStatus get status;/// 現在処理中のJob
+ Job? get job;/// エラーが発生した場合のメッセージ
+ String? get errorMessage;
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +28,16 @@ $AppStateCopyWith<AppState> get copyWith => _$AppStateCopyWithImpl<AppState>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppState&&(identical(other.status, status) || other.status == status)&&(identical(other.resultText, resultText) || other.resultText == resultText)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppState&&(identical(other.status, status) || other.status == status)&&(identical(other.job, job) || other.job == job)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,status,resultText,imageUrl,errorMessage);
+int get hashCode => Object.hash(runtimeType,status,job,errorMessage);
 
 @override
 String toString() {
-  return 'AppState(status: $status, resultText: $resultText, imageUrl: $imageUrl, errorMessage: $errorMessage)';
+  return 'AppState(status: $status, job: $job, errorMessage: $errorMessage)';
 }
 
 
@@ -45,11 +48,11 @@ abstract mixin class $AppStateCopyWith<$Res>  {
   factory $AppStateCopyWith(AppState value, $Res Function(AppState) _then) = _$AppStateCopyWithImpl;
 @useResult
 $Res call({
- AppStatus status, String? resultText, String? imageUrl, String? errorMessage
+ AppStatus status, Job? job, String? errorMessage
 });
 
 
-
+$JobCopyWith<$Res>? get job;
 
 }
 /// @nodoc
@@ -62,16 +65,27 @@ class _$AppStateCopyWithImpl<$Res>
 
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? resultText = freezed,Object? imageUrl = freezed,Object? errorMessage = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? status = null,Object? job = freezed,Object? errorMessage = freezed,}) {
   return _then(_self.copyWith(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as AppStatus,resultText: freezed == resultText ? _self.resultText : resultText // ignore: cast_nullable_to_non_nullable
-as String?,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
-as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
+as AppStatus,job: freezed == job ? _self.job : job // ignore: cast_nullable_to_non_nullable
+as Job?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
+/// Create a copy of AppState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$JobCopyWith<$Res>? get job {
+    if (_self.job == null) {
+    return null;
+  }
 
+  return $JobCopyWith<$Res>(_self.job!, (value) {
+    return _then(_self.copyWith(job: value));
+  });
+}
 }
 
 
@@ -153,10 +167,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AppStatus status,  String? resultText,  String? imageUrl,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AppStatus status,  Job? job,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppState() when $default != null:
-return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage);case _:
+return $default(_that.status,_that.job,_that.errorMessage);case _:
   return orElse();
 
 }
@@ -174,10 +188,10 @@ return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage)
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AppStatus status,  String? resultText,  String? imageUrl,  String? errorMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AppStatus status,  Job? job,  String? errorMessage)  $default,) {final _that = this;
 switch (_that) {
 case _AppState():
-return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage);case _:
+return $default(_that.status,_that.job,_that.errorMessage);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -194,10 +208,10 @@ return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage)
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AppStatus status,  String? resultText,  String? imageUrl,  String? errorMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AppStatus status,  Job? job,  String? errorMessage)?  $default,) {final _that = this;
 switch (_that) {
 case _AppState() when $default != null:
-return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage);case _:
+return $default(_that.status,_that.job,_that.errorMessage);case _:
   return null;
 
 }
@@ -209,12 +223,14 @@ return $default(_that.status,_that.resultText,_that.imageUrl,_that.errorMessage)
 
 
 class _AppState implements AppState {
-  const _AppState({this.status = AppStatus.initial, this.resultText, this.imageUrl, this.errorMessage});
+  const _AppState({this.status = AppStatus.initial, this.job, this.errorMessage});
   
 
+/// 現在のアプリの状態
 @override@JsonKey() final  AppStatus status;
-@override final  String? resultText;
-@override final  String? imageUrl;
+/// 現在処理中のJob
+@override final  Job? job;
+/// エラーが発生した場合のメッセージ
 @override final  String? errorMessage;
 
 /// Create a copy of AppState
@@ -227,16 +243,16 @@ _$AppStateCopyWith<_AppState> get copyWith => __$AppStateCopyWithImpl<_AppState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppState&&(identical(other.status, status) || other.status == status)&&(identical(other.resultText, resultText) || other.resultText == resultText)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppState&&(identical(other.status, status) || other.status == status)&&(identical(other.job, job) || other.job == job)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,status,resultText,imageUrl,errorMessage);
+int get hashCode => Object.hash(runtimeType,status,job,errorMessage);
 
 @override
 String toString() {
-  return 'AppState(status: $status, resultText: $resultText, imageUrl: $imageUrl, errorMessage: $errorMessage)';
+  return 'AppState(status: $status, job: $job, errorMessage: $errorMessage)';
 }
 
 
@@ -247,11 +263,11 @@ abstract mixin class _$AppStateCopyWith<$Res> implements $AppStateCopyWith<$Res>
   factory _$AppStateCopyWith(_AppState value, $Res Function(_AppState) _then) = __$AppStateCopyWithImpl;
 @override @useResult
 $Res call({
- AppStatus status, String? resultText, String? imageUrl, String? errorMessage
+ AppStatus status, Job? job, String? errorMessage
 });
 
 
-
+@override $JobCopyWith<$Res>? get job;
 
 }
 /// @nodoc
@@ -264,17 +280,28 @@ class __$AppStateCopyWithImpl<$Res>
 
 /// Create a copy of AppState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? resultText = freezed,Object? imageUrl = freezed,Object? errorMessage = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? status = null,Object? job = freezed,Object? errorMessage = freezed,}) {
   return _then(_AppState(
 status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as AppStatus,resultText: freezed == resultText ? _self.resultText : resultText // ignore: cast_nullable_to_non_nullable
-as String?,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
-as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
+as AppStatus,job: freezed == job ? _self.job : job // ignore: cast_nullable_to_non_nullable
+as Job?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
 
+/// Create a copy of AppState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$JobCopyWith<$Res>? get job {
+    if (_self.job == null) {
+    return null;
+  }
 
+  return $JobCopyWith<$Res>(_self.job!, (value) {
+    return _then(_self.copyWith(job: value));
+  });
+}
 }
 
 // dart format on
