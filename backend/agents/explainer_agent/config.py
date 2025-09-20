@@ -1,7 +1,7 @@
 from google.genai import types
 
 # 使用するGeminiモデルのID
-MODEL_ID = "gemini-2.5-flash-lite"
+MODEL_ID = "gemini-2.5-flash"
 
 # コンテンツの安全性を確保するためのセーフティ設定
 # 特定のカテゴリの不適切なコンテンツをブロックする
