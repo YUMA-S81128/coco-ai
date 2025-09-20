@@ -150,63 +150,107 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     }
   }
 
-  /// 会話形式のコンテンツをビルドする
+  /// 会話の状態に応じて適切なUIを構築する
   Widget _buildConversationContent(AppState appState) {
-    final job = appState.job;
     final status = appState.status;
 
-    // 初期状態または録音中
     if (status == AppStatus.initial || status == AppStatus.recording) {
-      return Center(
-        child: Column(
+      return _buildInitialOrRecordingUI();
+    }
+
+    if (status == AppStatus.processing && appState.job == null) {
+      return _buildProcessingUI();
+    }
+
+    return _buildResultUI(appState);
+  }
+
+  /// テキストウィジェットを構築するヘルパーメソッド
+  Widget _buildTextWidget(String text, {bool useNewline = false}) {
+    final processedText = useNewline ? text : text.replaceAll('\n', ' ');
+    return Text(
+      processedText,
+      style: const TextStyle(fontSize: 18, color: Colors.black87),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  /// 初期状態または録音中のUIを構築する
+  Widget _buildInitialOrRecordingUI() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useHorizontalLayout = constraints.maxHeight < 250;
+
+        final images = Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Image.asset(AppAssets.coco, width: 80),
+            const SizedBox(width: 40),
+            Image.asset(AppAssets.ai, width: 80),
+          ],
+        );
+
+        if (useHorizontalLayout) {
+          return Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Image.asset(AppAssets.coco, width: 80),
-                const SizedBox(width: 40),
-                Image.asset(AppAssets.ai, width: 80),
+                images,
+                Flexible(
+                  child: _buildTextWidget(
+                    'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-              style: TextStyle(fontSize: 18, color: Colors.black87),
-              textAlign: TextAlign.center,
+          );
+        } else {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                images,
+                const SizedBox(height: 24),
+                _buildTextWidget(
+                  'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+                  useNewline: true,
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }
+          );
+        }
+      },
+    );
+  }
 
-    // 処理中（スピナー表示）
-    if (status == AppStatus.processing && job == null) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 24),
-            Text('ココとアイが考えてるよ...', style: TextStyle(fontSize: 18)),
-          ],
-        ),
-      );
-    }
+  /// 処理中のUIを構築する
+  Widget _buildProcessingUI() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 24),
+          Text('ココとアイが考えてるよ...', style: TextStyle(fontSize: 18)),
+        ],
+      ),
+    );
+  }
 
-    // 結果表示
+  /// 結果表示のUIを構築する
+  Widget _buildResultUI(AppState appState) {
+    final job = appState.job;
+    if (job == null) return const SizedBox.shrink();
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
-        // ユーザーの質問（書き起こし）
-        if (job?.transcribedText != null && job!.transcribedText!.isNotEmpty)
+        if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
           _buildChatBubble(
             text: job.transcribedText!,
             character: Character.coco,
           ),
-
-        // AIの回答（説明文）と音声再生ボタン
-        if (job?.childExplanation != null && job!.childExplanation!.isNotEmpty)
+        if (job.childExplanation != null && job.childExplanation!.isNotEmpty)
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -222,13 +266,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                 ),
             ],
           ),
-
-        // 生成された画像
-        if (job?.imageGcsPath != null && job!.imageGcsPath!.isNotEmpty)
+        if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
           _buildImage(job.imageGcsPath!),
-
-        // 処理中のインジケーター
-        if (status == AppStatus.processing)
+        if (appState.status == AppStatus.processing)
           const Padding(
             padding: EdgeInsets.only(top: 20),
             child: Center(child: CircularProgressIndicator()),
@@ -265,9 +305,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     required Character character,
   }) {
     final isCoco = character == Character.coco;
-    final crossAxisAlignment = isCoco
-        ? CrossAxisAlignment.start
-        : CrossAxisAlignment.end;
+    final crossAxisAlignment =
+        isCoco ? CrossAxisAlignment.start : CrossAxisAlignment.end;
     final avatar = Image.asset(
       isCoco ? AppAssets.coco : AppAssets.ai,
       width: 50,
@@ -278,9 +317,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isCoco
-            ? MainAxisAlignment.start
-            : MainAxisAlignment.end,
+        mainAxisAlignment:
+            isCoco ? MainAxisAlignment.start : MainAxisAlignment.end,
         children: [
           if (isCoco) ...[avatar, const SizedBox(width: 12)],
           Flexible(
@@ -312,9 +350,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   /// 生成された画像ウィジェットをビルドする
   Widget _buildImage(String imageGcsPath) {
     return FutureBuilder<String>(
-      future: ref
-          .read(storageServiceProvider)
-          .getDownloadUrlFromGsPath(imageGcsPath),
+      future:
+          ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageGcsPath),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
