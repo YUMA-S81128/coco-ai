@@ -1,32 +1,16 @@
 rules_version = '2';
 
 service firebase.storage {
-  // 認証されたユーザーが、パスに含まれるuserIdと一致するかどうかを判定する共通関数
-  function isOwner(userId) {
-    return request.auth != null && request.auth.uid == userId;
-  }
-
-  // coco-ai-output-narrations バケットのルール
-  // 所有者、またはファイル作成から10分以内であれば読み取りを許可 (署名付きURLのため)
-  match /b/coco-ai-output-narrations/o {
-    match /{userId}/{jobId}/{allPaths=**} {
-      allow read: if isOwner(userId) || request.time < resource.timeCreated + duration.value(10, 'm');
-      allow write: if false;
+  match /b/{bucket}/o {
+    // 認証されたユーザーが、パスに含まれるuserIdと一致するかどうかを判定する共通関数
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
-  }
 
-  // coco-ai-input-audio バケットのルール
-  // 所有者のみ読み取りを許可
-  match /b/coco-ai-input-audio/o {
-    match /{userId}/{jobId}/{allPaths=**} {
-      allow read: if isOwner(userId);
-      allow write: if false;
-    }
-  }
-
-  // coco-ai-output-images バケットのルール
-  // 所有者のみ読み取りを許可
-  match /b/coco-ai-output-images/o {
+    // 各バケット内のファイルへのアクセスルール
+    // ファイルパスは `{userId}/{jobId}/{fileName}` の形式を想定しており、
+    // どのバケットでも、認証された所有者のみが読み取り可能です。
+    // クライアントからの直接書き込みは、署名付きURLやバックエンド経由で行うため拒否します。
     match /{userId}/{jobId}/{allPaths=**} {
       allow read: if isOwner(userId);
       allow write: if false;
