@@ -18,8 +18,9 @@ class HomeScreen extends ConsumerWidget {
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
       }
     });
 
@@ -90,9 +91,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('音声の再生に失敗しました: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('音声の再生に失敗しました: $e')));
       }
     }
   }
@@ -162,21 +163,28 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
               character: Character.coco,
             ),
 
-          // AIの回答（説明文）
-          if (job?.childExplanation != null && job!.childExplanation!.isNotEmpty)
-            _buildChatBubble(
-              text: job.childExplanation!,
-              character: Character.ai,
+          // AIの回答（説明文）と音声再生ボタン
+          if (job?.childExplanation != null &&
+              job!.childExplanation!.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _buildChatBubble(
+                  text: job.childExplanation!,
+                  character: Character.ai,
+                ),
+                if (job.finalAudioGcsPath != null &&
+                    job.finalAudioGcsPath!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, right: 62),
+                    child: _buildAudioPlayer(job.finalAudioGcsPath!),
+                  ),
+              ],
             ),
 
           // 生成された画像
           if (job?.imageGcsPath != null && job!.imageGcsPath!.isNotEmpty)
-            _buildImage(job!.imageGcsPath!),
-
-          // ナレーターの音声再生ボタン
-          if (job?.finalAudioGcsPath != null &&
-              job!.finalAudioGcsPath!.isNotEmpty)
-            _buildAudioPlayer(job!.finalAudioGcsPath!),
+            _buildImage(job.imageGcsPath!),
 
           // 処理中のインジケーター
           if (status == AppStatus.processing)
@@ -198,8 +206,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       onPressed: isProcessing
           ? null
           : () => isRecording
-              ? appNotifier.stopRecordingAndProcess()
-              : appNotifier.startRecording(),
+                ? appNotifier.stopRecordingAndProcess()
+                : appNotifier.startRecording(),
       icon: Icon(isRecording ? Icons.stop : Icons.mic, color: Colors.white),
       iconSize: 60,
       style: IconButton.styleFrom(
@@ -217,23 +225,32 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     required Character character,
   }) {
     final isCoco = character == Character.coco;
-    final alignment = isCoco ? Alignment.centerLeft : Alignment.centerRight;
-    final crossAxisAlignment = isCoco ? CrossAxisAlignment.start : CrossAxisAlignment.end;
-    final avatar = Image.asset(isCoco ? AppAssets.coco : AppAssets.ai, width: 50);
+    final crossAxisAlignment = isCoco
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.end;
+    final avatar = Image.asset(
+      isCoco ? AppAssets.coco : AppAssets.ai,
+      width: 50,
+    );
     final bubbleColor = isCoco ? Colors.white : Colors.blue[100];
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isCoco ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment: isCoco
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.end,
         children: [
           if (isCoco) ...[avatar, const SizedBox(width: 12)],
           Flexible(
             child: Column(
               crossAxisAlignment: crossAxisAlignment,
               children: [
-                Text(isCoco ? 'ココ' : 'アイ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  isCoco ? 'ココ' : 'アイ',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -255,7 +272,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   /// 生成された画像ウィジェットをビルドする
   Widget _buildImage(String imageGcsPath) {
     return FutureBuilder<String>(
-      future: ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageGcsPath),
+      future: ref
+          .read(storageServiceProvider)
+          .getDownloadUrlFromGsPath(imageGcsPath),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -271,8 +290,13 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
             height: 300,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              image: DecorationImage(image: NetworkImage(downloadUrl), fit: BoxFit.cover),
-              boxShadow: [BoxShadow(color: Colors.black.withAlpha(26), blurRadius: 10)],
+              image: DecorationImage(
+                image: NetworkImage(downloadUrl),
+                fit: BoxFit.cover,
+              ),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withAlpha(26), blurRadius: 10),
+              ],
             ),
           ),
         );
@@ -282,22 +306,15 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   /// 音声再生ウィジェットをビルドする
   Widget _buildAudioPlayer(String audioGcsPath) {
-    return Center(
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () => _toggleAudioPlayback(audioGcsPath),
-            icon: Icon(_isAudioPlaying ? Icons.graphic_eq : Icons.play_arrow),
-            label: Text(_isAudioPlaying ? 'とめる' : 'アイのおはなしをきく'),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Colors.teal,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-            ),
-          ),
-        ],
+    return ElevatedButton.icon(
+      onPressed: () => _toggleAudioPlayback(audioGcsPath),
+      icon: Icon(_isAudioPlaying ? Icons.graphic_eq : Icons.play_arrow),
+      label: Text(_isAudioPlaying ? 'とめる' : 'アイのおはなしをきく'),
+      style: ElevatedButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.teal,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
     );
   }
