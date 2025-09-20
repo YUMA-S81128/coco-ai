@@ -128,13 +128,13 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     final appNotifier = ref.read(appStateProvider.notifier);
     final status = appState.status;
 
-    return Stack(
-      children: [
-        // 会話コンテンツ
-        _buildConversationContent(appState),
+    final conversationContent = _buildConversationContent(appState);
 
-        // マイクボタン (初期状態または録音中のみ表示)
-        if (status == AppStatus.initial || status == AppStatus.recording)
+    if (status == AppStatus.initial || status == AppStatus.recording) {
+      // マイクボタン表示時はStackで重ねる
+      return Stack(
+        children: [
+          conversationContent,
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -142,8 +142,12 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
               child: _buildMicButton(appState, appNotifier),
             ),
           ),
-      ],
-    );
+        ],
+      );
+    } else {
+      // それ以外の場合はコンテンツを直接表示
+      return conversationContent;
+    }
   }
 
   /// 会話形式のコンテンツをビルドする
@@ -192,7 +196,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
     // 結果表示
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40), // 下部の余白を調整
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
         // ユーザーの質問（書き起こし）
         if (job?.transcribedText != null && job!.transcribedText!.isNotEmpty)
