@@ -42,11 +42,12 @@ class IllustratorAgent(BaseProcessingAgent):
         プロンプトからイラストを生成し、Cloud Storageに保存する。
         """
         job_id, explanation = await self._get_common_data(context)
+        user_id = context.session.user_id
         prompt = explanation.illustration_prompt
         self._logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 
         # 保存先のGCSパスを生成
-        destination_blob_name = f"{job_id}-{uuid4()}.png"
+        destination_blob_name = f"{user_id}/{job_id}/{uuid4()}.png"
         output_gcs_uri = (
             f"gs://{self._settings.generated_image_bucket}/{destination_blob_name}"
         )
