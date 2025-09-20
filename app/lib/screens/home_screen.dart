@@ -1,6 +1,5 @@
 import 'package:app/constants/app_assets.dart';
 import 'package:app/models/app_state.dart';
-import 'package:app/models/job.dart';
 import 'package:app/providers/app_state_provider.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -13,7 +12,12 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appState = ref.watch(appStateProvider);
     final appNotifier = ref.read(appStateProvider.notifier);
+    final screenWidth = MediaQuery.of(context).size.width;
+    const breakpoint = 600;
+
+    final isProcessing = appState.status == AppStatus.processing;
 
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
@@ -30,11 +34,26 @@ class HomeScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // リフレッシュボタン
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black54),
-            onPressed: () => appNotifier.reset(),
-            tooltip: '新しい質問をはじめる',
+          // リフレッシュボタン (画面幅に応じて表示を切り替え)
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: screenWidth > breakpoint
+                ? TextButton.icon(
+                    icon: const Icon(Icons.refresh, color: Colors.black54),
+                    label: const Text(
+                      'リフレッシュ',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    onPressed: isProcessing ? null : () => appNotifier.reset(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black54,
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.black54),
+                    onPressed: isProcessing ? null : () => appNotifier.reset(),
+                    tooltip: '新しい質問をはじめる',
+                  ),
           ),
         ],
       ),
@@ -102,20 +121,22 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   Widget build(BuildContext context) {
     final appState = ref.watch(appStateProvider);
     final appNotifier = ref.read(appStateProvider.notifier);
+    final status = appState.status;
 
     return Stack(
       children: [
         // 会話コンテンツ
         _buildConversationContent(appState),
 
-        // マイクボタン
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 40.0),
-            child: _buildMicButton(appState, appNotifier),
+        // マイクボタン (初期状態または録音中のみ表示)
+        if (status == AppStatus.initial || status == AppStatus.recording)
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40.0),
+              child: _buildMicButton(appState, appNotifier),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -127,11 +148,25 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
     // 初期状態または録音中
     if (status == AppStatus.initial || status == AppStatus.recording) {
-      return const Center(
-        child: Text(
-          'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-          style: TextStyle(fontSize: 18, color: Colors.black54),
-          textAlign: TextAlign.center,
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(AppAssets.coco, width: 80),
+                const SizedBox(width: 40),
+                Image.asset(AppAssets.ai, width: 80),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+              style: TextStyle(fontSize: 18, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
     }
