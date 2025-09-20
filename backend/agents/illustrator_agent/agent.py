@@ -59,11 +59,19 @@ class IllustratorAgent(BaseProcessingAgent):
 
         try:
             # Imagenモデルを呼び出して画像を生成
-            images = self._client.models.generate_images(
+            response = self._client.models.generate_images(
                 model=self._model, prompt=prompt, config=generate_config
             )
 
-            if not images:
+            # --- デバッグログ ---
+            self._logger.info(f"デバッグ (response object): {dir(response)}")
+            if response and response.generated_images:
+                self._logger.info(
+                    f"デバッグ (first image object): {dir(response.generated_images[0])}"
+                )
+            # --- デバッグログ終 ---
+
+            if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
 
             self._logger.info(
@@ -80,7 +88,9 @@ class IllustratorAgent(BaseProcessingAgent):
 
             # update_sessionを直接呼び出し、状態の永続化を待つ
             try:
-                self._logger.info(f"[{job_id}] イラスト結果をセッションに永続化します...")
+                self._logger.info(
+                    f"[{job_id}] イラスト結果をセッションに永続化します..."
+                )
                 session_service = context.session_service
                 assert isinstance(session_service, FirestoreSessionService)
 
@@ -91,11 +101,14 @@ class IllustratorAgent(BaseProcessingAgent):
                     user_id=context.session.user_id,
                 )
                 if not updated_session:
-                    raise RuntimeError("セッションの更新に失敗しました (update_session returned None)")
+                    raise RuntimeError(
+                        "セッションの更新に失敗しました (update_session returned None)"
+                    )
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
             except Exception as e:
                 self._logger.error(
-                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}", exc_info=True
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
+                    exc_info=True,
                 )
                 raise
 
