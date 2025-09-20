@@ -7,7 +7,6 @@ import 'package:app/services/auth_service.dart';
 import 'package:app/models/signed_url_response.dart';
 import 'package:app/models/app_state.dart';
 import 'package:app/models/job.dart';
-import 'package:app/services/storage_service.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -28,8 +27,17 @@ class AppStateNotifier extends StateNotifier<AppState> {
 
   AppStateNotifier(this._ref) : super(const AppState());
 
+  /// 状態を初期値にリセットする
+  void reset() {
+    _jobSubscription?.cancel();
+    state = const AppState();
+  }
+
   /// 音声録音を開始
   Future<void> startRecording() async {
+    // 状態をリセットしてから録音を開始する
+    reset();
+
     // 録音を開始する前に、利用可能な入力デバイス（マイク）が存在するかを確認する
     // これにより、物理的にマイクがない場合に即座にエラーを返すことができる
     final devices = await _audioRecorder.listInputDevices();
@@ -219,27 +227,19 @@ class AppStateNotifier extends StateNotifier<AppState> {
         .doc(jobId)
         .snapshots()
         .listen(
-          (snapshot) async {
+          (snapshot) {
             if (!snapshot.exists) return;
 
             try {
               // 安全なJobモデルに変換する
               final job = Job.fromFirestore(snapshot);
 
+              // 新しいJobオブジェクトで状態を更新
+              state = state.copyWith(job: job, status: AppStatus.processing);
+
               switch (job.status) {
                 case JobStatus.completed:
-                  // GCSパスからダウンロードURLを取得する
-                  final imageUrl = job.imageGcsPath != null
-                      ? await _ref
-                            .read(storageServiceProvider)
-                            .getDownloadUrlFromGsPath(job.imageGcsPath!)
-                      : null;
-
-                  state = state.copyWith(
-                    status: AppStatus.success,
-                    resultText: job.childExplanation,
-                    imageUrl: imageUrl,
-                  );
+                  state = state.copyWith(status: AppStatus.success);
                   _jobSubscription?.cancel();
                   break;
                 case JobStatus.error:
@@ -250,7 +250,8 @@ class AppStateNotifier extends StateNotifier<AppState> {
                   _jobSubscription?.cancel();
                   break;
                 default:
-                // 'processing'、'illustrating'などの進行中のステータスでは何もしない
+                // 'processing'、'illustrating'などの進行中のステータス
+                // UI側でjobオブジェクトの変更を検知して表示を更新する
               }
             } catch (e) {
               // データ解析またはURL取得中の潜在的なエラーを処理する

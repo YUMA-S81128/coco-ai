@@ -51,10 +51,16 @@ class NarratorAgent(BaseProcessingAgent):
             )
 
             # GCSにアップロード
+            user_id = context.session.user_id
+            if not user_id:
+                raise ValueError("セッションからユーザーIDが取得できませんでした。")
+
             file_name = f"{job_id}-{uuid4()}.mp3"
+            destination_blob_name = f"{user_id}/{job_id}/{file_name}"
+
             gcs_path = await upload_blob_from_memory(
                 bucket_name=self._settings.processed_audio_bucket,
-                destination_blob_name=file_name,
+                destination_blob_name=destination_blob_name,
                 data=response.audio_content,
                 content_type="audio/mpeg",
             )

@@ -1,3 +1,4 @@
+import 'package:app/models/job.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'app_state.freezed.dart';
@@ -18,11 +19,8 @@ abstract class AppState with _$AppState {
     /// 現在のアプリの状態
     @Default(AppStatus.initial) AppStatus status,
 
-    /// AIによって生成された解説文
-    String? resultText,
-
-    /// AIによって生成されたイラストのURL
-    String? imageUrl,
+    /// 現在処理中のJob
+    Job? job,
 
     /// エラーが発生した場合のメッセージ
     String? errorMessage,

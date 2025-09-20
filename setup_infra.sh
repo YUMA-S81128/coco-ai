@@ -79,6 +79,24 @@ EOF
 gcloud storage buckets update "gs://${GENERATED_IMAGE_BUCKET}" --cors-file="${IMAGE_CORS_CONFIG_FILE}"
 rm "${IMAGE_CORS_CONFIG_FILE}" # 一時ファイルを削除
 
+echo "--- 解説音声用バケットにCORS設定を適用中 ---"
+# フロントエンド（Firebase Hosting）からの音声読み込みを許可するためのCORS設定
+AUDIO_CORS_CONFIG_FILE=$(mktemp)
+cat > "${AUDIO_CORS_CONFIG_FILE}" <<EOF
+[
+  {
+    "origin": [
+      "https://${GOOGLE_CLOUD_PROJECT}.web.app"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]
+EOF
+
+gcloud storage buckets update "gs://${PROCESSED_AUDIO_BUCKET}" --cors-file="${AUDIO_CORS_CONFIG_FILE}"
+rm "${AUDIO_CORS_CONFIG_FILE}" # 一時ファイルを削除
+
 echo "--- Secret Managerのシークレットを確認・作成中 ---"
 # Cloud Buildでフロントエンドのビルドに必要なFirebase設定キーのリスト
 # これらのキーに対応するシークレットを作成します。

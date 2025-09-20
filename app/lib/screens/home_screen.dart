@@ -2,6 +2,7 @@ import 'package:app/constants/app_assets.dart';
 import 'package:app/models/app_state.dart';
 import 'package:app/providers/app_state_provider.dart';
 import 'package:app/services/storage_service.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,11 +12,15 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Riverpodからアプリケーションの状態を監視
     final appState = ref.watch(appStateProvider);
     final appNotifier = ref.read(appStateProvider.notifier);
+    final screenWidth = MediaQuery.of(context).size.width;
+    const breakpoint = 600;
 
-    // エラー時にSnackBarを表示するために状態の変化をリッスンする
+    final isProcessing = appState.status == AppStatus.processing;
+    final isInitial = appState.status == AppStatus.initial;
+
+    // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
         ScaffoldMessenger.of(
@@ -26,141 +31,367 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.lightBlue[50],
-      body: Stack(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // リフレッシュボタン (画面幅に応じて表示を切り替え)
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: screenWidth > breakpoint
+                ? TextButton.icon(
+                    icon: const Icon(Icons.refresh, color: Colors.black54),
+                    label: const Text(
+                      'リフレッシュ',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    onPressed: (isInitial || isProcessing)
+                        ? null
+                        : () => appNotifier.reset(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black54,
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.black54),
+                    onPressed: (isInitial || isProcessing)
+                        ? null
+                        : () => appNotifier.reset(),
+                    tooltip: '新しい質問をはじめる',
+                  ),
+          ),
+        ],
+      ),
+      body: const _HomeContent(), // メインコンテンツをステートフルウィジェットに
+    );
+  }
+}
+
+/// メインコンテンツとインタラクションを管理するステートフルウィジェット
+class _HomeContent extends ConsumerStatefulWidget {
+  const _HomeContent();
+
+  @override
+  ConsumerState<_HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends ConsumerState<_HomeContent> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isAudioPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 音声プレーヤーの状態変化をリッスン
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isAudioPlaying = state == PlayerState.playing;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  /// 音声再生をトグルする
+  Future<void> _toggleAudioPlayback(String audioGcsPath) async {
+    if (_isAudioPlaying) {
+      await _audioPlayer.stop();
+      return;
+    }
+
+    try {
+      // GCSパスからダウンロードURLを取得
+      final url = await ref
+          .read(storageServiceProvider)
+          .getDownloadUrlFromGsPath(audioGcsPath);
+      if (url.isNotEmpty) {
+        await _audioPlayer.play(UrlSource(url));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('音声の再生に失敗しました: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = ref.watch(appStateProvider);
+    final appNotifier = ref.read(appStateProvider.notifier);
+    final status = appState.status;
+
+    final conversationContent = _buildConversationContent(appState);
+
+    if (status == AppStatus.initial || status == AppStatus.recording) {
+      return LayoutBuilder(builder: (context, constraints) {
+        // 高さが450px未満の場合に横並びレイアウトを使用する
+        const double heightBreakpoint = 450;
+        final bool useHorizontalLayout = constraints.maxHeight < heightBreakpoint;
+
+        if (useHorizontalLayout) {
+          // 横長の場合: コンテンツとマイクボタンを横並びに配置
+          return Row(
+            children: [
+              Expanded(
+                child: conversationContent,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: _buildMicButton(appState, appNotifier),
+              ),
+            ],
+          );
+        } else {
+          // 縦長の場合: コンテンツの上にマイクボタンを重ねて配置 (元のレイアウト)
+          return Stack(
+            children: [
+              conversationContent,
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 40.0),
+                  child: _buildMicButton(appState, appNotifier),
+                ),
+              ),
+            ],
+          );
+        }
+      });
+    } else {
+      // それ以外の状態では、コンテンツをそのまま表示
+      return conversationContent;
+    }
+  }
+
+  /// 会話の状態に応じて適切なUIを構築する
+  Widget _buildConversationContent(AppState appState) {
+    final status = appState.status;
+
+    if (status == AppStatus.initial || status == AppStatus.recording) {
+      return _buildInitialOrRecordingUI();
+    }
+
+    if (status == AppStatus.processing && appState.job == null) {
+      return _buildProcessingUI();
+    }
+
+    return _buildResultUI(appState);
+  }
+
+  /// テキストウィジェットを構築するヘルパーメソッド
+  Widget _buildTextWidget(String text, {bool useNewline = false}) {
+    final processedText = useNewline ? text : text.replaceAll('\n', ' ');
+    return Text(
+      processedText,
+      style: const TextStyle(fontSize: 18, color: Colors.black87),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  /// 初期状態または録音中のUIを構築する
+  Widget _buildInitialOrRecordingUI() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Image.asset(AppAssets.coco, width: 150, height: 150),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(AppAssets.coco, width: 80),
+              const SizedBox(width: 40),
+              Image.asset(AppAssets.ai, width: 80),
+            ],
           ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Image.asset(AppAssets.ai, width: 150, height: 150),
-          ),
-
-          // 中央のコンテンツをビルド
-          Center(child: _buildContent(context, appState, ref)),
-
-          // マイクボタンをビルド
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40.0),
-              child: _buildMicButton(appState, appNotifier),
-            ),
+          const SizedBox(height: 24),
+          _buildTextWidget(
+            'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
+            useNewline: true,
           ),
         ],
       ),
     );
   }
-}
 
-/// 現在のアプリ状態に基づいて中央のコンテンツウィジェットをビルドする
-Widget _buildContent(BuildContext context, AppState appState, WidgetRef ref) {
-  final textTheme = Theme.of(context).textTheme;
-
-  switch (appState.status) {
-    case AppStatus.processing:
-      return const Column(
+  /// 処理中のUIを構築する
+  Widget _buildProcessingUI() {
+    return const Center(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(),
           SizedBox(height: 24),
           Text('ココとアイが考えてるよ...', style: TextStyle(fontSize: 18)),
         ],
-      );
-    case AppStatus.success:
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      ),
+    );
+  }
+
+  /// 結果表示のUIを構築する
+  Widget _buildResultUI(AppState appState) {
+    final job = appState.job;
+    if (job == null) return const SizedBox.shrink();
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      children: [
+        if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
+          _buildChatBubble(
+            text: job.transcribedText!,
+            character: Character.coco,
+          ),
+        if (job.childExplanation != null && job.childExplanation!.isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildChatBubble(
+                text: job.childExplanation!,
+                character: Character.ai,
+              ),
+              if (job.finalAudioGcsPath != null &&
+                  job.finalAudioGcsPath!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 62),
+                  child: _buildAudioPlayer(job.finalAudioGcsPath!),
+                ),
+            ],
+          ),
+        if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
+          _buildImage(job.imageGcsPath!),
+        if (appState.status == AppStatus.processing)
+          const Padding(
+            padding: EdgeInsets.only(top: 20),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
+  }
+
+  /// マイクボタンをビルドする
+  Widget _buildMicButton(AppState appState, AppStateNotifier appNotifier) {
+    final isRecording = appState.status == AppStatus.recording;
+    final isProcessing = appState.status == AppStatus.processing;
+
+    return IconButton(
+      onPressed: isProcessing
+          ? null
+          : () => isRecording
+                ? appNotifier.stopRecordingAndProcess()
+                : appNotifier.startRecording(),
+      icon: Icon(isRecording ? Icons.stop : Icons.mic, color: Colors.white),
+      iconSize: 60,
+      style: IconButton.styleFrom(
+        backgroundColor: isRecording ? Colors.red[400] : Colors.pink[300],
+        disabledBackgroundColor: Colors.grey,
+        padding: const EdgeInsets.all(24),
+        shape: const CircleBorder(),
+      ),
+    );
+  }
+
+  /// キャラクターごとのチャット吹き出しをビルドする
+  Widget _buildChatBubble({
+    required String text,
+    required Character character,
+  }) {
+    final isCoco = character == Character.coco;
+    final crossAxisAlignment =
+        isCoco ? CrossAxisAlignment.start : CrossAxisAlignment.end;
+    final avatar = Image.asset(
+      isCoco ? AppAssets.coco : AppAssets.ai,
+      width: 50,
+    );
+    final bubbleColor = isCoco ? Colors.white : Colors.blue[100];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment:
+            isCoco ? MainAxisAlignment.start : MainAxisAlignment.end,
         children: [
-          // AIが生成したイラストを表示
-          _buildImage(appState, ref),
-          const SizedBox(height: 24),
-          // AIが生成した解説テキストを表示
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              appState.resultText ?? 'なにかお話ししてね！',
-              style: textTheme.headlineSmall,
-              textAlign: TextAlign.center,
+          if (isCoco) ...[avatar, const SizedBox(width: 12)],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: crossAxisAlignment,
+              children: [
+                Text(
+                  isCoco ? 'ココ' : 'アイ',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(text, style: const TextStyle(fontSize: 16)),
+                ),
+              ],
             ),
           ),
+          if (!isCoco) ...[const SizedBox(width: 12), avatar],
         ],
-      );
-    case AppStatus.initial:
-    case AppStatus.recording:
-    case AppStatus.error:
-      // 初期状態、録音中、またはエラー状態ではシンプルなメッセージを表示
-      return Text(
-        'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-        style: textTheme.headlineSmall,
-        textAlign: TextAlign.center,
-      );
-  }
-}
-
-Widget _buildImage(AppState appState, WidgetRef ref) {
-  final imageUrl = appState.imageUrl;
-  if (imageUrl == null || imageUrl.isEmpty) {
-    return const Center(child: Text('イラストがないみたい'));
+      ),
+    );
   }
 
-  return FutureBuilder(
-    // imageUrl (GCSパス) からダウンロードURLを取得する
-    future: ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageUrl),
-    builder: (context, snapshot) {
-      // 読み込み中
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      // エラー発生、またはURLが取得できない
-      if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-        return const Center(child: Text('イラストの表示に失敗しました'));
-      }
-      // 成功
-      final downloadUrl = snapshot.data!;
-      return Container(
-        width: 300,
-        height: 300,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(26),
-              spreadRadius: 1,
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+  /// 生成された画像ウィジェットをビルドする
+  Widget _buildImage(String imageGcsPath) {
+    return FutureBuilder<String>(
+      future:
+          ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageGcsPath),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink(); // エラー時は何も表示しない
+        }
+        final downloadUrl = snapshot.data!;
+        return Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 16),
+            width: 300,
+            height: 300,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              image: DecorationImage(
+                image: NetworkImage(downloadUrl),
+                fit: BoxFit.cover,
+              ),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withAlpha(26), blurRadius: 10),
+              ],
             ),
-          ],
-          image: DecorationImage(
-            image: NetworkImage(downloadUrl),
-            fit: BoxFit.cover,
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
+  }
+
+  /// 音声再生ウィジェットをビルドする
+  Widget _buildAudioPlayer(String audioGcsPath) {
+    return ElevatedButton.icon(
+      onPressed: () => _toggleAudioPlayback(audioGcsPath),
+      icon: Icon(_isAudioPlaying ? Icons.graphic_eq : Icons.play_arrow),
+      label: Text(_isAudioPlaying ? 'とめる' : 'アイのおはなしをきく'),
+      style: ElevatedButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.teal,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+    );
+  }
 }
 
-/// 現在のアプリ状態に基づいてマイクボタンをビルドする
-Widget _buildMicButton(AppState appState, AppStateNotifier appNotifier) {
-  final isRecording = appState.status == AppStatus.recording;
-  final isProcessing = appState.status == AppStatus.processing;
-
-  return IconButton(
-    onPressed:
-        isProcessing // 処理中はボタンを無効化
-        ? null
-        : () => isRecording
-              ? appNotifier.stopRecordingAndProcess()
-              : appNotifier.startRecording(),
-    icon: Icon(isRecording ? Icons.stop : Icons.mic, color: Colors.white),
-    iconSize: 60,
-    style: IconButton.styleFrom(
-      backgroundColor: isRecording ? Colors.red[400] : Colors.pink[300],
-      disabledBackgroundColor: Colors.grey,
-      padding: const EdgeInsets.all(24),
-      shape: const CircleBorder(),
-    ),
-  );
-}
+enum Character { coco, ai }

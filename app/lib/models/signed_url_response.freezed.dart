@@ -15,7 +15,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SignedUrlResponse {
 
- String get jobId; String get signedUrl; int get expiresIn; Map<String, String> get requiredHeaders;
+/// 新しく作成されたジョブの一意のID
+ String get jobId;/// ファイルをアップロードするための署名付きURL
+ String get signedUrl;/// URLの有効期限（秒）
+ int get expiresIn;/// アップロードリクエストに含める必要があるHTTPヘッダー
+ Map<String, String> get requiredHeaders;
 /// Create a copy of SignedUrlResponse
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -215,10 +219,15 @@ class _SignedUrlResponse implements SignedUrlResponse {
   const _SignedUrlResponse({required this.jobId, required this.signedUrl, required this.expiresIn, required final  Map<String, String> requiredHeaders}): _requiredHeaders = requiredHeaders;
   factory _SignedUrlResponse.fromJson(Map<String, dynamic> json) => _$SignedUrlResponseFromJson(json);
 
+/// 新しく作成されたジョブの一意のID
 @override final  String jobId;
+/// ファイルをアップロードするための署名付きURL
 @override final  String signedUrl;
+/// URLの有効期限（秒）
 @override final  int expiresIn;
+/// アップロードリクエストに含める必要があるHTTPヘッダー
  final  Map<String, String> _requiredHeaders;
+/// アップロードリクエストに含める必要があるHTTPヘッダー
 @override Map<String, String> get requiredHeaders {
   if (_requiredHeaders is EqualUnmodifiableMapView) return _requiredHeaders;
   // ignore: implicit_dynamic_type
