@@ -152,10 +152,12 @@ gcloud storage buckets add-iam-policy-binding gs://${PROCESSED_AUDIO_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/storage.objectCreator" >/dev/null
 
-# 説明画像用バケットへの書き込み権限
+# 説明画像用バケットへのオブジェクトユーザー権限（オブジェクトの移動・削除を含む）
 gcloud storage buckets add-iam-policy-binding gs://${GENERATED_IMAGE_BUCKET} \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectCreator" >/dev/null
+  --role="roles/storage.objectUser" >/dev/null
+
+
 
 echo "--- Functions用サービスアカウントに必要なIAMロールを付与中 ---"
 # FunctionsがFirestoreにジョブを登録するための権限
