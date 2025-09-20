@@ -67,8 +67,15 @@ class IllustratorAgent(BaseProcessingAgent):
                 model=self._model, prompt=prompt, config=generate_config
             )
 
+            self._logger.info(f"debug (original response): {response}")
+
             if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
+
+            self._logger.info(f"debug (generated_images): {response.generated_images}")
+            self._logger.info(
+                f"debug (1st index of generated_images): {response.generated_images[0]}"
+            )
 
             generated_image = response.generated_images[0]
             if not generated_image.image or not generated_image.image.gcs_uri:
@@ -76,7 +83,9 @@ class IllustratorAgent(BaseProcessingAgent):
 
             # 画像は一時的なGCSパスに保存される
             temp_gcs_uri = generated_image.image.gcs_uri
-            self._logger.info(f"[{job_id}] イラストを一時GCSパスに保存しました: {temp_gcs_uri}")
+            self._logger.info(
+                f"[{job_id}] イラストを一時GCSパスに保存しました: {temp_gcs_uri}"
+            )
 
             # 一時パスをパースしてバケットとBlob名を取得
             parsed_uri = urlparse(temp_gcs_uri)
@@ -89,7 +98,9 @@ class IllustratorAgent(BaseProcessingAgent):
                 blob_name=temp_blob_name,
                 new_name=destination_blob_name,
             )
-            self._logger.info(f"[{job_id}] イラストを目的のGCSパスに移動しました: {final_gcs_uri}")
+            self._logger.info(
+                f"[{job_id}] イラストを目的のGCSパスに移動しました: {final_gcs_uri}"
+            )
 
             result = IllustrationResult(
                 job_id=job_id,
