@@ -48,15 +48,17 @@ class IllustratorAgent(BaseProcessingAgent):
         prompt = explanation.illustration_prompt
         self._logger.info(f"[{job_id}] イラスト生成を開始します。プロンプト: {prompt}")
 
-        # 保存先のGCSパスを生成
+        # 最終的な保存先のファイル名を定義
         destination_blob_name = f"{user_id}/{job_id}/{uuid4()}.png"
-        output_gcs_uri = (
-            f"gs://{self._settings.generated_image_bucket}/{destination_blob_name}"
+
+        # APIへ渡す一時的な出力先「ディレクトリ」を定義
+        output_gcs_directory = (
+            f"gs://{self._settings.generated_image_bucket}/temp_generations/{job_id}/"
         )
 
         # 画像生成の設定
         generate_config = types.GenerateImagesConfig(
-            output_gcs_uri=output_gcs_uri, **GENERATE_CONFIG_PARAMS
+            output_gcs_uri=output_gcs_directory, **GENERATE_CONFIG_PARAMS
         )
 
         try:
