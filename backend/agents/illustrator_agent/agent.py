@@ -72,11 +72,6 @@ class IllustratorAgent(BaseProcessingAgent):
             if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
 
-            self._logger.info(f"debug (generated_images): {response.generated_images}")
-            self._logger.info(
-                f"debug (1st index of generated_images): {response.generated_images[0]}"
-            )
-
             generated_image = response.generated_images[0]
             if not generated_image.image or not generated_image.image.gcs_uri:
                 raise ValueError("生成された画像にGCS URIが含まれていません。")
