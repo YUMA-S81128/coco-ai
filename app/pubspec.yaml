@@ -55,7 +55,7 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Audio
-  audioplayers: ^6.0.0
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:
