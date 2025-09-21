@@ -67,8 +67,6 @@ class IllustratorAgent(BaseProcessingAgent):
                 model=self._model, prompt=prompt, config=generate_config
             )
 
-            self._logger.info(f"debug (original response): {response}")
-
             if not response.generated_images:
                 raise ValueError("画像生成に失敗しました。")
 
