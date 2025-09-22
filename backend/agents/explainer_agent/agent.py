@@ -1,3 +1,4 @@
+from callback import after_explainer_agent_callback
 from google.adk.agents import LlmAgent
 from models.agent_models import ExplanationOutput
 from services.logging_service import get_logger
@@ -24,5 +25,6 @@ class ExplainerAgent(LlmAgent):
             instruction=SYSTEM_INSTRUCTION_PROMPT,
             output_key="explanation_data",  # セッションに保存する際のキー
             output_schema=ExplanationOutput,  # 出力の型定義
+            after_agent_callback=after_explainer_agent_callback,
         )
         self._logger = get_logger(__name__)
