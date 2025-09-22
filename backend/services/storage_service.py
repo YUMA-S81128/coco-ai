@@ -1,118 +1,110 @@
 import asyncio
-import random
+import logging
+import ssl
 
+import requests
 from google.cloud import storage
 from services.logging_service import get_logger
-from urllib3.exceptions import SSLError
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
+from urllib3.exceptions import SSLError as UrllibSSLError
 
 storage_client = storage.Client()
 logger = get_logger(__name__)
 
 
+def is_ssl_error(exc: BaseException) -> bool:
+    """
+    tenacity の predicate 用。例外自身または __cause__/__context__ に
+    SSL 関連の例外が含まれているかを判定する（requests, urllib3, stdlib ssl）。
+    """
+    ssl_types = (requests.exceptions.SSLError, UrllibSSLError, ssl.SSLError)
+
+    if isinstance(exc, ssl_types):
+        return True
+
+    # 例外チェーンにネストされているケースをカバー
+    cause = getattr(exc, "__cause__", None)
+    if isinstance(cause, ssl_types):
+        return True
+
+    context = getattr(exc, "__context__", None)
+    if isinstance(context, ssl_types):
+        return True
+
+    return False
+
+
+# tenacity の helper を使って RetryBase を作る
+gcs_retry_decorator = retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=10, max=60),
+    retry=retry_if_exception(is_ssl_error),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+
+
+@gcs_retry_decorator
 async def upload_blob_from_memory(
     bucket_name: str,
     destination_blob_name: str,
     data: bytes,
     content_type: str,
-    max_retries: int = 5,
 ) -> str:
     """
     メモリ上のバイトオブジェクトからCloud Storageバケットにデータをアップロードする。
-    一時的なエラー（特にSSLError）に対応するため、リトライ処理を実装。
 
     Args:
         bucket_name: GCSバケットの名前。
         destination_blob_name: バケット内のオブジェクトの希望の名前。
         data: アップロードするデータ（バイトオブジェクト）。
         content_type: データのコンテントタイプ（例: 'audio/mpeg'）。
-        max_retries: 最大リトライ回数。
 
     Returns:
         アップロードされたファイルのGCS URI（例: 'gs://bucket-name/file-name'）。
     """
+    logger.info(
+        f"ファイルを {destination_blob_name} としてGCSバケット {bucket_name} にアップロードしています..."
+    )
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
 
-    for attempt in range(max_retries):
-        try:
-            # GCSへのアップロードは同期的I/Oのため、別スレッドで実行
-            await asyncio.to_thread(
-                blob.upload_from_string, data, content_type=content_type
-            )
+    # GCS クライアントは同期 API のため別スレッドで実行
+    await asyncio.to_thread(blob.upload_from_string, data, content_type=content_type)
 
-            gcs_path = f"gs://{bucket_name}/{destination_blob_name}"
-            logger.info(f"ファイルを {gcs_path} にアップロードしました。")
-            return gcs_path
-        except SSLError as e:
-            if attempt < max_retries - 1:
-                wait_time = (2**attempt) + random.uniform(0, 1)
-                logger.warning(
-                    f"GCSへのアップロード中にSSLErrorが発生しました。リトライします... (試行 {attempt + 1}/{max_retries}) "
-                    f"{wait_time:.2f}秒待機します。"
-                )
-                await asyncio.sleep(wait_time)
-            else:
-                logger.error(
-                    f"GCSバケット '{bucket_name}' へのアップロードに失敗しました（リトライ上限到達）: {e}",
-                    exc_info=True,
-                )
-                raise
-        except Exception as e:
-            logger.error(
-                f"GCSバケット '{bucket_name}' へのアップロード中に予期せぬエラーが発生しました: {e}",
-                exc_info=True,
-            )
-            raise
-    # This should be unreachable if max_retries > 0, but as a fallback.
-    raise Exception(f"Failed to upload to GCS after {max_retries} retries.")
+    gcs_path = f"gs://{bucket_name}/{destination_blob_name}"
+    logger.info(f"ファイルを {gcs_path} にアップロードしました。")
+    return gcs_path
 
 
-async def rename_blob(
-    bucket_name: str, blob_name: str, new_name: str, max_retries: int = 5
-) -> str:
+@gcs_retry_decorator
+async def rename_blob(bucket_name: str, blob_name: str, new_name: str) -> str:
     """
-    同じバケット内でBlobの名前を変更（移動）する。
-    一時的なエラー（特にSSLError）に対応するため、リトライ処理を実装。
+    同じバケット内でBlobの名前を変更（ファイル移動）する。
 
     Args:
         bucket_name: GCSバケットの名前。
         blob_name: 変更元のBlobの名前。
         new_name: 新しいBlobの名前。
-        max_retries: 最大リトライ回数。
 
     Returns:
         名前変更後のファイルのGCS URI。
     """
+    logger.info(
+        f"GCSバケット {bucket_name} 内で {blob_name} を {new_name} に移動しています..."
+    )
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
 
-    for attempt in range(max_retries):
-        try:
-            # GCSの操作は同期的I/Oのため、別スレッドで実行
-            new_blob = await asyncio.to_thread(bucket.rename_blob, blob, new_name)
+    # 同様に別スレッドで実行
+    new_blob = await asyncio.to_thread(bucket.rename_blob, blob, new_name)
 
-            new_gcs_path = f"gs://{bucket_name}/{new_blob.name}"
-            logger.info(f"ファイルを {blob.name} から {new_blob.name} に移動しました。")
-            return new_gcs_path
-        except SSLError as e:
-            if attempt < max_retries - 1:
-                wait_time = (2**attempt) + random.uniform(0, 1)
-                logger.warning(
-                    f"GCSでのファイル移動中にSSLErrorが発生しました。リトライします... (試行 {attempt + 1}/{max_retries}) "
-                    f"{wait_time:.2f}秒待機します。"
-                )
-                await asyncio.sleep(wait_time)
-            else:
-                logger.error(
-                    f"GCSバケット '{bucket_name}' 内でのファイル移動に失敗しました（リトライ上限到達）: {e}",
-                    exc_info=True,
-                )
-                raise
-        except Exception as e:
-            logger.error(
-                f"GCSバケット '{bucket_name}' 内でのファイル移動中に予期せぬエラーが発生しました: {e}",
-                exc_info=True,
-            )
-            raise
-    # This should be unreachable if max_retries > 0, but as a fallback.
-    raise Exception(f"Failed to move file in GCS after {max_retries} retries.")
+    new_gcs_path = f"gs://{bucket_name}/{new_blob.name}"
+    logger.info(f"ファイルを {blob.name} から {new_blob.name} に移動しました。")
+    return new_gcs_path

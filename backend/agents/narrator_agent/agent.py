@@ -5,12 +5,12 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.cloud.texttospeech import SynthesisInput, TextToSpeechClient
 from google.genai.types import Content, Part
-from models.agent_models import NarrationResult
+from models.agent_models import AgentProcessingError, NarrationResult
 from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 from services.storage_service import upload_blob_from_memory
 
-from config import get_settings
+from config import AGENT_ERROR_MESSAGES, get_settings
 
 from .config import AUDIO_CONFIG, OPERATION_TIMEOUT, VOICE_SELECTION_PARAMS
 
@@ -74,7 +74,9 @@ class NarratorAgent(BaseProcessingAgent):
 
             # update_sessionを直接呼び出し、状態の永続化を待つ
             try:
-                self._logger.info(f"[{job_id}] ナレーション結果をセッションに永続化します...")
+                self._logger.info(
+                    f"[{job_id}] ナレーション結果をセッションに永続化します..."
+                )
                 session_service = context.session_service
                 assert isinstance(session_service, FirestoreSessionService)
 
@@ -85,11 +87,14 @@ class NarratorAgent(BaseProcessingAgent):
                     user_id=context.session.user_id,
                 )
                 if not updated_session:
-                    raise RuntimeError("セッションの更新に失敗しました (update_session returned None)")
+                    raise RuntimeError(
+                        "セッションの更新に失敗しました (update_session returned None)"
+                    )
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
             except Exception as e:
                 self._logger.error(
-                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}", exc_info=True
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
+                    exc_info=True,
                 )
                 raise
 
@@ -106,4 +111,10 @@ class NarratorAgent(BaseProcessingAgent):
                 f"[{job_id}] Text-to-Speech APIでエラーが発生しました: {e}",
                 exc_info=True,
             )
-            raise
+            raise AgentProcessingError(
+                agent_name=self.name,
+                user_message=AGENT_ERROR_MESSAGES.get(
+                    self.name, AGENT_ERROR_MESSAGES["UnknownAgent"]
+                ),
+                original_exception=e,
+            ) from e

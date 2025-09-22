@@ -1,14 +1,6 @@
 from pydantic import BaseModel, Field
 
 
-class TranscriptionResult(BaseModel):
-    """音声文字起こしプロセスの結果"""
-
-    job_id: str
-    gcs_uri: str
-    text: str = Field(description="音声から書き起こされたテキスト")
-
-
 class ExplanationOutput(BaseModel):
     """
     ExplainerAgent内のLLMによって生成される構造化データ。
@@ -71,3 +63,21 @@ class StorageObjectData(BaseModel):
     bucket: str
     name: str
     metadata: CloudEventMetadata
+
+
+class AgentProcessingError(Exception):
+    """
+    エージェント処理中に発生したエラーを表すカスタム例外。
+    UIに表示するユーザーフレンドリーなメッセージと、ログ用のエージェント名を持つ。
+    """
+
+    def __init__(
+        self,
+        agent_name: str,
+        user_message: str,
+        original_exception: Exception | None = None,
+    ):
+        self.agent_name = agent_name
+        self.user_message = user_message
+        self.original_exception = original_exception
+        super().__init__(f"Agent '{agent_name}' failed: {user_message}")
