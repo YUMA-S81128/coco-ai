@@ -7,12 +7,12 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types
 from google.genai.types import Content, Part
-from models.agent_models import IllustrationResult
+from models.agent_models import AgentProcessingError, IllustrationResult
 from services import storage_service
 from services.firestore_session_service import FirestoreSessionService
 from services.logging_service import get_logger
 
-from config import get_settings
+from config import AGENT_ERROR_MESSAGES, get_settings
 
 from .config import GENERATE_CONFIG_PARAMS, IMAGEN_MODEL_ID
 
@@ -139,4 +139,10 @@ class IllustratorAgent(BaseProcessingAgent):
             self._logger.error(
                 f"[{job_id}] Imagen APIでエラーが発生しました: {e}", exc_info=True
             )
-            raise
+            raise AgentProcessingError(
+                agent_name=self.name,
+                user_message=AGENT_ERROR_MESSAGES.get(
+                    self.name, AGENT_ERROR_MESSAGES["UnknownAgent"]
+                ),
+                original_exception=e,
+            ) from e

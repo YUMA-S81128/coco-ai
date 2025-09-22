@@ -63,3 +63,21 @@ class StorageObjectData(BaseModel):
     bucket: str
     name: str
     metadata: CloudEventMetadata
+
+
+class AgentProcessingError(Exception):
+    """
+    エージェント処理中に発生したエラーを表すカスタム例外。
+    UIに表示するユーザーフレンドリーなメッセージと、ログ用のエージェント名を持つ。
+    """
+
+    def __init__(
+        self,
+        agent_name: str,
+        user_message: str,
+        original_exception: Exception | None = None,
+    ):
+        self.agent_name = agent_name
+        self.user_message = user_message
+        self.original_exception = original_exception
+        super().__init__(f"Agent '{agent_name}' failed: {user_message}")

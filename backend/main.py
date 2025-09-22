@@ -29,13 +29,13 @@ from google.cloud import firestore
 from google.genai.types import Content, Part
 
 # モデル、サービス、コールバック関数
-from models.agent_models import StorageObjectData
+from models.agent_models import AgentProcessingError, StorageObjectData
 from pydantic import ValidationError
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger, setup_logging
 
 # 設定
-from config import get_settings
+from config import AGENT_ERROR_MESSAGES, get_settings
 
 
 @asynccontextmanager
@@ -115,6 +115,22 @@ async def _parse_cloudevent_payload(request: Request) -> dict:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="CloudEventを解析できませんでした。",
+        )
+
+
+async def _update_job_status_on_error(
+    db_client: firestore.AsyncClient, job_id: str, error_message: str
+):
+    """
+    Firestoreのジョブステータスをエラー状態に更新し、その際のDBエラーをログに記録するヘルパー関数。
+    """
+    try:
+        await update_job_status(
+            db_client, job_id, "error", {"errorMessage": error_message}
+        )
+    except Exception as db_error:
+        logger.error(
+            f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
         )
 
 
@@ -209,19 +225,18 @@ async def run_pipeline_in_background(
         logger.info(
             f"[{job_id}] ワークフローが完了しました。最終レスポンス: {final_response_content}"
         )
+    except AgentProcessingError as ape:
+        logger.error(
+            f"[{job_id}] エージェント処理エラー ({ape.agent_name}): {ape.user_message}",
+            exc_info=True,
+        )
+        await _update_job_status_on_error(db_client, job_id, ape.user_message)
     except Exception as e:
         logger.error(
-            f"[{job_id}] ワークフローでエラーが発生しました: {e}", exc_info=True
+            f"[{job_id}] ワークフローで予期せぬエラーが発生しました: {e}", exc_info=True
         )
-        # エラーが発生した場合、Firestoreのジョブステータスを更新
-        try:
-            await update_job_status(
-                db_client, job_id, "error", {"errorMessage": str(e)}
-            )
-        except Exception as db_error:
-            logger.error(
-                f"[{job_id}] Firestoreへのエラー状態の書き込みに失敗しました: {db_error}"
-            )
+        user_facing_error = AGENT_ERROR_MESSAGES["UnknownAgent"]
+        await _update_job_status_on_error(db_client, job_id, user_facing_error)
 
 
 # ---------------------------------

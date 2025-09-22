@@ -5,9 +5,10 @@ from google.adk.events import Event
 from google.cloud.speech_v2 import SpeechClient
 from google.cloud.speech_v2.types import cloud_speech
 from google.genai.types import Content, Part
+from models.agent_models import AgentProcessingError
 from services.logging_service import get_logger
 
-from config import get_settings
+from config import AGENT_ERROR_MESSAGES, get_settings
 
 from .config import OPERATION_TIMEOUT, RECOGNITION_CONFIG
 
@@ -114,6 +115,14 @@ class TranscriberAgent(BaseAgent):
             )
 
         except Exception as e:
-            error_message = f"音声の文字起こし中にエラーが発生しました: {e}"
-            self._logger.error(f"[{job_id}] {error_message}", exc_info=True)
-            raise
+            self._logger.error(
+                f"[{job_id}] 音声の文字起こし中にエラーが発生しました: {e}",
+                exc_info=True,
+            )
+            raise AgentProcessingError(
+                agent_name=self.name,
+                user_message=AGENT_ERROR_MESSAGES.get(
+                    self.name, AGENT_ERROR_MESSAGES["UnknownAgent"]
+                ),
+                original_exception=e,
+            ) from e

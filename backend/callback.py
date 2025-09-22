@@ -1,10 +1,12 @@
 from dependencies import get_firestore_client
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_response import LlmResponse
-from models.agent_models import ExplanationOutput
+from models.agent_models import AgentProcessingError, ExplanationOutput
 from pydantic import BaseModel
 from services.firestore_service import update_job_data
 from services.logging_service import get_logger
+
+from config import AGENT_ERROR_MESSAGES
 
 logger = get_logger(__name__)
 
@@ -102,7 +104,6 @@ async def parse_and_store_llm_response_as_explanation(
     """
     LLMからのレスポンスをパースし、ExplanationOutputとしてstateに格納する。
     after_model_callbackとして使用する。
-    パースに失敗しても後続の処理は続行される。
     """
 
     state = callback_context.state
@@ -131,11 +132,18 @@ async def parse_and_store_llm_response_as_explanation(
         logger.info(f"[{job_id}] 'explanation_data' をstateに正常に格納しました。")
 
     except Exception as e:
-        # パースに失敗しても処理を止めず、警告ログのみ出力する
-        logger.warning(
-            f"[{job_id}] LLM出力のパースとstateへの格納に失敗しました。後続の処理は継続します。エラー: {e}",
+        # パースに失敗した場合、AgentProcessingErrorをraiseする
+        logger.error(
+            f"[{job_id}] LLM出力のパースとstateへの格納に失敗しました。エラー: {e}",
             exc_info=True,
         )
+        raise AgentProcessingError(
+            agent_name="ExplainerAgent",
+            user_message=AGENT_ERROR_MESSAGES.get(
+                "ExplainerAgent", AGENT_ERROR_MESSAGES["UnknownAgent"]
+            ),
+            original_exception=e,
+        ) from e
 
     return None
 

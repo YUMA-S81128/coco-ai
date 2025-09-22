@@ -4,6 +4,7 @@ from google.adk.events import Event
 from google.cloud import firestore
 from google.genai.types import Content, Part
 from models.agent_models import (
+    AgentProcessingError,
     ExplanationResult,
     FinalJobData,
     IllustrationResult,
@@ -11,6 +12,8 @@ from models.agent_models import (
 )
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger
+
+from config import AGENT_ERROR_MESSAGES
 
 
 class ResultWriterAgent(BaseAgent):
@@ -72,10 +75,10 @@ class ResultWriterAgent(BaseAgent):
                 f"[{job_id}] Firestoreへの結果書き込み中にエラーが発生しました: {e}",
                 exc_info=True,
             )
-            await update_job_status(
-                self._db_client,
-                job_id,
-                "error",
-                {"errorMessage": f"最終結果の処理に失敗しました: {e}"},
-            )
-            raise
+            raise AgentProcessingError(
+                agent_name=self.name,
+                user_message=AGENT_ERROR_MESSAGES.get(
+                    self.name, AGENT_ERROR_MESSAGES["UnknownAgent"]
+                ),
+                original_exception=e,
+            ) from e

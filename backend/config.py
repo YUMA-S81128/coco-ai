@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     )
 
 
+AGENT_ERROR_MESSAGES = {
+    "TranscriberAgent": "音声認識に失敗しました。",
+    "ExplainerAgent": "解説生成に失敗しました。",
+    "IllustratorAgent": "イラスト生成に失敗しました。",
+    "NarratorAgent": "ナレーション生成に失敗しました。",
+    "ResultWriterAgent": "結果の書き込みに失敗しました。",
+    "UnknownAgent": "不明な処理でエラーが発生しました。",  # 汎用的なメッセージ
+}
+
+
 @lru_cache
 def get_settings() -> Settings:
     """
