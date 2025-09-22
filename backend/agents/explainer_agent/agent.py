@@ -1,3 +1,7 @@
+from callback import (
+    after_explainer_agent_callback,
+    parse_and_store_llm_response_as_explanation,
+)
 from google.adk.agents import LlmAgent
 from models.agent_models import ExplanationOutput
 from services.logging_service import get_logger
@@ -22,7 +26,9 @@ class ExplainerAgent(LlmAgent):
             model=MODEL_ID,
             generate_content_config=GENERATE_CONFIG,
             instruction=SYSTEM_INSTRUCTION_PROMPT,
-            output_key="explanation_data",  # セッションに保存する際のキー
-            output_schema=ExplanationOutput,  # 出力の型定義
+            output_key="explanation_data",
+            output_schema=ExplanationOutput,
+            after_model_callback=parse_and_store_llm_response_as_explanation,
+            after_agent_callback=after_explainer_agent_callback,
         )
         self._logger = get_logger(__name__)

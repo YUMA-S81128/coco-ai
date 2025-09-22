@@ -220,10 +220,6 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       return _buildInitialOrRecordingUI();
     }
 
-    if (status == AppStatus.processing && appState.job == null) {
-      return _buildProcessingUI();
-    }
-
     if (status == AppStatus.error) {
       return const Center(
         child: Padding(
@@ -237,6 +233,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       );
     }
 
+    // processing または success の場合は常に結果表示UIを呼び出す
     return _buildResultUI(appState);
   }
 
@@ -298,59 +295,90 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     );
   }
 
-  /// 処理中のUIを構築する
-  Widget _buildProcessingUI() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 24),
-          Text('ココとアイが考えてるよ...', style: TextStyle(fontSize: 18)),
-        ],
-      ),
-    );
-  }
-
   /// 結果表示のUIを構築する
   Widget _buildResultUI(AppState appState) {
     final job = appState.job;
-    if (job == null) return const SizedBox.shrink();
 
+    // 表示すべき主要なコンテンツ（吹き出し）があるかどうかを判定
+    final bool hasContent =
+        job != null &&
+        ((job.transcribedText?.isNotEmpty ?? false) ||
+            (job.childExplanation?.isNotEmpty ?? false));
+
+    // コンテンツがなく、まだ処理中の場合は、中央にスピナーを表示
+    if (!hasContent && appState.status == AppStatus.processing) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 24),
+            Text('ココがきみのことばをききとっているよ...', style: TextStyle(fontSize: 18)),
+          ],
+        ),
+      );
+    }
+
+    // コンテンツがある場合、または処理が完了した場合はListViewを表示
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
-        if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
+        if (job?.transcribedText?.isNotEmpty ?? false)
           _buildChatBubble(
-            text: job.transcribedText!,
+            text: job!.transcribedText!,
             character: Character.coco,
           ),
-        if (job.childExplanation != null && job.childExplanation!.isNotEmpty)
+        if (job?.childExplanation?.isNotEmpty ?? false)
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _buildChatBubble(
-                text: job.childExplanation!,
+                text: job!.childExplanation!,
                 character: Character.ai,
               ),
-              if (job.finalAudioGcsPath != null &&
-                  job.finalAudioGcsPath!.isNotEmpty)
+              if (job.finalAudioGcsPath?.isNotEmpty ?? false)
                 Padding(
                   padding: const EdgeInsets.only(top: 8, right: 62),
                   child: _buildAudioPlayer(job.finalAudioGcsPath!),
                 ),
             ],
           ),
-        if (job.parentHint != null && job.parentHint!.isNotEmpty)
-          _OhanashiNoTaneCard(hint: job.parentHint!),
-        if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
-          _buildImage(job.imageGcsPath!),
+        if (job?.parentHint?.isNotEmpty ?? false)
+          _OhanashiNoTaneCard(hint: job!.parentHint!),
+        if (job?.imageGcsPath?.isNotEmpty ?? false)
+          _buildImage(job!.imageGcsPath!),
+
+        // 処理中であれば、リストの最後に進捗インジケーターを表示
         if (appState.status == AppStatus.processing)
-          const Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: Center(child: CircularProgressIndicator()),
-          ),
+          _buildProgressIndicatorWithMessage(appState),
       ],
+    );
+  }
+
+  /// 処理中の進捗インジケーターとメッセージを構築する
+  Widget _buildProgressIndicatorWithMessage(AppState appState) {
+    final job = appState.job;
+    String message;
+
+    // 文字起こしは終わったが、子供向け解説がまだの場合
+    if (job == null || (job.childExplanation?.isEmpty ?? true)) {
+      message = 'アイがココの質問にこたえているよ...';
+    }
+    // 子供向け解説は終わったが、まだ処理が続いている場合（画像生成など）
+    else {
+      message = 'さいごの仕上げをしているよ...';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 24),
+          Text(message, style: const TextStyle(fontSize: 18)),
+        ],
+      ),
     );
   }
 
