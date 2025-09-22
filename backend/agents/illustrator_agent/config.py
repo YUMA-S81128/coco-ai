@@ -11,7 +11,7 @@ GENERATE_CONFIG_PARAMS = {
     # 画像のアスペクト比（1:1は正方形）
     "aspect_ratio": "1:1",
     # プロンプトへの忠実度を制御（5〜12の範囲で設定）
-    "guidance_scale": 7.0,
+    "guidance_scale": 9.0,
     # 生成する画像のサイズ
     "image_size": "1K",
     # セーフティフィルターの強度
