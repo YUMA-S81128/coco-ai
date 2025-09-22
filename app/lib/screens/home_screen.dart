@@ -26,7 +26,7 @@ class HomeScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.errorMessage!),
-            duration: const Duration(seconds: 15),
+            duration: const Duration(seconds: 10),
           ),
         );
       }
@@ -66,6 +66,43 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: const _HomeContent(), // メインコンテンツをステートフルウィジェットに
+    );
+  }
+}
+
+/// 「おはなしのタネ」を表示するためのカードウィジェット
+class _OhanashiNoTaneCard extends StatelessWidget {
+  const _OhanashiNoTaneCard({required this.hint});
+
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ExpansionTile(
+        leading: const Icon(Icons.lightbulb_outline, color: Colors.amber),
+        title: const Text(
+          'おはなしのタネ',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              top: 8,
+            ),
+            child: Text(
+              hint,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -187,6 +224,19 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       return _buildProcessingUI();
     }
 
+    if (status == AppStatus.error) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            '予期せぬエラーが発生しました。右上のリフレッシュボタンを押して再度試してください。',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.black54),
+          ),
+        ),
+      );
+    }
+
     return _buildResultUI(appState);
   }
 
@@ -268,7 +318,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     if (job == null) return const SizedBox.shrink();
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
         if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
           _buildChatBubble(
@@ -291,6 +341,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                 ),
             ],
           ),
+        if (job.parentHint != null && job.parentHint!.isNotEmpty)
+          _OhanashiNoTaneCard(hint: job.parentHint!),
         if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
           _buildImage(job.imageGcsPath!),
         if (appState.status == AppStatus.processing)
