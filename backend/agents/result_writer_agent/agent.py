@@ -5,6 +5,7 @@ from google.cloud import firestore
 from google.genai.types import Content, Part
 from models.agent_models import (
     AgentProcessingError,
+    ExplanationOutput,
     ExplanationResult,
     FinalJobData,
     IllustrationResult,
@@ -35,15 +36,15 @@ class ResultWriterAgent(BaseAgent):
             raise ValueError("セッションにjob_idが見つかりません。")
 
         try:
-            transcribed_text = state["transcribed_text"]
-            explanation_data = state["explanation_data"]
+            transcribed_text: str = state["transcribed_text"]
+            explanation_data: ExplanationOutput = state["explanation_data"]
             illustration = IllustrationResult.model_validate(state["illustration"])
             narration = NarrationResult.model_validate(state["narration"])
 
             explanation = ExplanationResult(
                 job_id=job_id,
                 original_text=transcribed_text,
-                **explanation_data,
+                **explanation_data.model_dump(),
             )
 
             # 最終的なデータモデルを構築
