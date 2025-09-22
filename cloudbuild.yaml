@@ -88,7 +88,7 @@ steps:
             --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},FUNCTION_SA_EMAIL=${_FUNCTION_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
           
           echo ">>> Ensuring service-level min instances = 1"
-          gcloud run services update ${_FUNCTION_NAME} \
+          gcloud run services update ${_FUNCTION_SERVICE_NAME} \
             --region ${_GOOGLE_CLOUD_LOCATION} \
             --min 1 \
             --project=${PROJECT_ID}
@@ -185,7 +185,8 @@ substitutions:
   _DEPLOY_TARGET: "all"
   _GOOGLE_CLOUD_LOCATION: "asia-northeast1"
   _BACKEND_SERVICE_NAME: "coco-ai-backend"
-  _FUNCTION_NAME: "generate-signed-url"
+  _FUNCTION_NAME: "generate_signed_url"
+  _FUNCTION_SERVICE_NAME: "generate-signed-url"
   _FUNCTION_SA_NAME: "coco-ai-function-sa"
   _BACKEND_SA_NAME: "coco-ai-backend-sa"
   _TRIGGER_SA_NAME: "coco-ai-eventarc-invoker"
