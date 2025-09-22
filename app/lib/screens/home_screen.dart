@@ -362,11 +362,11 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
     // 文字起こしは終わったが、子供向け解説がまだの場合
     if (job == null || (job.childExplanation?.isEmpty ?? true)) {
-      message = 'アイがココの質問にこたえているよ...';
+      message = 'アイがココのしつもんにこたえているよ...';
     }
     // 子供向け解説は終わったが、まだ処理が続いている場合（画像生成など）
     else {
-      message = 'さいごの仕上げをしているよ...';
+      message = 'さいごにえをかいているよ...';
     }
 
     return Padding(

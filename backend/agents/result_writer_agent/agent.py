@@ -1,5 +1,3 @@
-from typing import AsyncGenerator
-
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
@@ -18,12 +16,8 @@ from services.logging_service import get_logger
 class ResultWriterAgent(BaseAgent):
     """
     ワークフローの最終エージェント。結果をFirestoreに書き込む。
-
-    このエージェントは、先行するエージェントやコールバックによって設定された
-    `workflow_failed` フラグや `parallel_errors` をセッション状態から確認する。
-    - エラーが検出された場合、Firestoreのジョブドキュメントを 'failed' ステータスで更新する。
-    - 成功した場合、生成されたすべての成果物（文字起こし、解説、画像パス、音声パス）を
-      収集・構造化し、Firestoreドキュメントを 'completed' ステータスと最終データで更新する。
+    生成されたすべての成果物（文字起こし、解説、画像パス、音声パス）を
+    収集・構造化し、Firestoreドキュメントを 'completed' ステータスと最終データで更新する。
     """
 
     def __init__(self, db_client: firestore.AsyncClient):
@@ -31,10 +25,10 @@ class ResultWriterAgent(BaseAgent):
         self._logger = get_logger(__name__)
         self._db_client = db_client
 
-    async def _run_async_impl(
-        self, context: InvocationContext
-    ) -> AsyncGenerator[Event, None]:
-        # ParallelAgentの実行後、最新の状態を確実にするためにセッションを再取得する
+    async def _run_async_impl(self, context: InvocationContext):
+        self._logger.info(f"debug: context: {context}")
+        self._logger.info(f"debug: context.session: {context.session}")
+
         session_service = context.session_service
         session = await session_service.get_session(
             app_name=context.session.app_name,
@@ -45,19 +39,6 @@ class ResultWriterAgent(BaseAgent):
         job_id = state.get("job_id")
         if not job_id:
             raise ValueError("セッション状態にjob_idが見つかりません。")
-
-        # `workflow_failed` フラグまたは `parallel_errors` の存在に基づいて失敗をチェック
-        if state.get("workflow_failed") or state.get("parallel_errors"):
-            errors = state.get("parallel_errors") or {
-                "unknown": "1つ以上のエージェントが失敗しました"
-            }
-            error_message = f"ワークフローが失敗しました: {errors}"
-            self._logger.error(f"[{job_id}] {error_message}")
-            await update_job_status(
-                self._db_client, job_id, "error", {"errorMessage": error_message}
-            )
-            # プロセス全体が失敗としてマークされるように例外を発生させる
-            raise RuntimeError(error_message)
 
         try:
             # セッション状態から必要な結果を取得して検証
