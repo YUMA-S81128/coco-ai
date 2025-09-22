@@ -19,7 +19,7 @@ class ExplanationOutput(BaseModel):
     child_explanation: str = Field(description="子供向けの解説文")
     child_explanation_ssml: str = Field(description="子供向けの解説文 (SSML形式)")
     parent_hint: str = Field(description="親向けの対話のヒント")
-    illustration_prompt: str = Field(description="イラスト生成用の英語プロンプト")
+    illustration_prompt: str = Field(description="イラスト生成用の日本語プロンプト")
     needs_clarification: bool = Field(description="追加の確認が必要かどうか")
     clarification_question: str | None = Field(
         default=None, description="追加の確認が必要な場合の質問文"
