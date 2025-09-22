@@ -86,15 +86,16 @@ class _OhanashiNoTaneCard extends StatelessWidget {
         leading: const Icon(Icons.lightbulb_outline, color: Colors.amber),
         title: const Text(
           'おはなしのタネ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
         ),
         children: [
           Padding(
-            padding:
-                const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              top: 8,
+            ),
             child: Text(
               hint,
               style: const TextStyle(fontSize: 16, color: Colors.black87),
@@ -221,6 +222,19 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
     if (status == AppStatus.processing && appState.job == null) {
       return _buildProcessingUI();
+    }
+
+    if (status == AppStatus.error) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            '予期せぬエラーが発生しました。右上のリフレッシュボタンを押して再度試してください。',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.black54),
+          ),
+        ),
+      );
     }
 
     return _buildResultUI(appState);
