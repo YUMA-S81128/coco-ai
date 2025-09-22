@@ -1,5 +1,6 @@
 from dependencies import get_firestore_client
 from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.llm_response import LlmResponse
 from pydantic import BaseModel
 from services.firestore_service import update_job_data
 from services.logging_service import get_logger
@@ -49,6 +50,30 @@ async def after_agent_callback(
     return None
 
 
+# --------------------------------------
+# ExplainerAgent実行後のコールバック
+# --------------------------------------
+async def parse_and_store_llm_response_as_explanation(
+    callback_context: CallbackContext, llm_response: LlmResponse
+) -> None:
+    """
+    LLMからのレスポンスをcallback_context.stateに格納する。
+    """
+    state = callback_context.state.to_dict()
+
+    job_id = state.get("job_id")
+    if not job_id:
+        logger.warning(
+            "job_idがstateに見つからないため、モデルコールバックをスキップします。"
+        )
+        return
+
+    # まずはllm_responseの中身を出力して確認する
+    logger.info(f"[{job_id}] LLMからのレスポンス: {llm_response}")
+
+    return None
+
+
 async def after_explainer_agent_callback(
     callback_context: CallbackContext,
 ) -> None:
@@ -60,14 +85,14 @@ async def after_explainer_agent_callback(
     job_id = state.get("job_id")
     if not job_id:
         logger.warning(
-            "job_idがstateに見つからないため、コールバックをスキップします。"
+            "job_idがstateに見つからないため、エージェントコールバックをスキップします。"
         )
         return
 
     explanation_data = state.get("explanation_data")
     if not explanation_data:
         logger.warning(
-            f"[{job_id}] stateにexplanation_dataが見つからないため、コールバックをスキップします。{state}"
+            f"[{job_id}] stateにexplanation_dataが見つからないため、エージェントコールバックをスキップします。"
         )
         return
 
