@@ -185,7 +185,7 @@ substitutions:
   _DEPLOY_TARGET: "all"
   _GOOGLE_CLOUD_LOCATION: "asia-northeast1"
   _BACKEND_SERVICE_NAME: "coco-ai-backend"
-  _FUNCTION_NAME: "generate_signed_url"
+  _FUNCTION_NAME: "generate-signed-url"
   _FUNCTION_SA_NAME: "coco-ai-function-sa"
   _BACKEND_SA_NAME: "coco-ai-backend-sa"
   _TRIGGER_SA_NAME: "coco-ai-eventarc-invoker"
