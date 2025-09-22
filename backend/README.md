@@ -14,7 +14,7 @@
 2.  **`ExplainerAgent`**: 大規模言語モデル（Gemini）を利用し、書き起こされたテキストから以下の情報を構造化された JSON 形式で生成します。
     - 子供向けの簡単な解説文
     - テキスト読み上げ（TTS）用の SSML 形式のテキスト
-    - 親子間の会話を促すための親向けのヒント
+    - 親子間の会話を促す「おはなしのタネ」（問いかけのヒント）
     - 画像生成用の詳細なプロンプト
 3.  **`ParallelAgent` (`IllustrateAndNarrate`)**: 処理時間を短縮するため、2 つのエージェントを並行して実行します。
     - **`IllustratorAgent`**: `ExplainerAgent`からのプロンプトに基づいて Imagen を使用して画像を生成し、Cloud Storage に保存します。
