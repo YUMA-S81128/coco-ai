@@ -428,18 +428,18 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   /// 生成された画像ウィジェットをビルドする
   Widget _buildImage(String imageGcsPath) {
-    return FutureBuilder<String>(
-      future: ref
-          .read(storageServiceProvider)
-          .getDownloadUrlFromGsPath(imageGcsPath),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+    // GCSパスから画像URLを取得するプロバイダーを監視
+    final imageUrlAsyncValue = ref.watch(imageUrlProvider(imageGcsPath));
+
+    // プロバイダーの状態に応じてUIを構築
+    return imageUrlAsyncValue.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => const SizedBox.shrink(), // エラー時は何も表示しない
+      data: (downloadUrl) {
+        if (downloadUrl.isEmpty) {
+          return const SizedBox.shrink(); // URLが空の場合も何も表示しない
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink(); // エラー時は何も表示しない
-        }
-        final downloadUrl = snapshot.data!;
+        // 取得したURLを使用して画像を表示
         return Center(
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 16),
