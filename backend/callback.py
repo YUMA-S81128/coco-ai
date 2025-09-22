@@ -1,6 +1,7 @@
 from dependencies import get_firestore_client
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_response import LlmResponse
+from models.agent_models import ExplanationOutput
 from pydantic import BaseModel
 from services.firestore_service import update_job_data
 from services.logging_service import get_logger
@@ -57,19 +58,42 @@ async def parse_and_store_llm_response_as_explanation(
     callback_context: CallbackContext, llm_response: LlmResponse
 ) -> None:
     """
-    LLMからのレスポンスをcallback_context.stateに格納する。
+    LLMからのレスポンスをパースし、ExplanationOutputとしてstateに格納する。
+    after_model_callbackとして使用する。
+    パースに失敗しても後続の処理は続行される。
     """
-    state = callback_context.state.to_dict()
 
-    job_id = state.get("job_id")
-    if not job_id:
+    state = callback_context.state
+    job_id = state.get("job_id", "unknown")
+
+    if not (llm_response.content and llm_response.content.parts):
         logger.warning(
-            "job_idがstateに見つからないため、モデルコールバックをスキップします。"
+            f"[{job_id}] LLMからのレスポンスにコンテンツが含まれていないため、モデルコールバックをスキップします。"
         )
         return
 
-    # まずはllm_responseの中身を出力して確認する
-    logger.info(f"[{job_id}] LLMからのレスポンス: {llm_response}")
+    if len(llm_response.content.parts) == 0 or not (llm_response.content.parts[0].text):
+        logger.warning(
+            f"[{job_id}] LLMからのレスポンスにテキストコンテンツが含まれていないため、モデルコールバックをスキップします。"
+        )
+        return
+
+    json_str = llm_response.content.parts[0].text
+
+    try:
+        # JSON文字列を直接Pydanticモデルに変換
+        parsed_output = ExplanationOutput.model_validate_json(json_str)
+
+        # パースしたデータをstateに格納
+        state["explanation_data"] = parsed_output
+        logger.info(f"[{job_id}] 'explanation_data' をstateに正常に格納しました。")
+
+    except Exception as e:
+        # パースに失敗しても処理を止めず、警告ログのみ出力する
+        logger.warning(
+            f"[{job_id}] LLM出力のパースとstateへの格納に失敗しました。後続の処理は継続します。エラー: {e}",
+            exc_info=True,
+        )
 
     return None
 
