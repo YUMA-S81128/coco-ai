@@ -4,7 +4,8 @@
 # パイプライン実行中にインスタンスが再生成されるのを防ぎます。
 from dependencies import get_firestore_client
 from google.adk.agents.callback_context import CallbackContext
-from services.firestore_service import update_job_status
+from pydantic import BaseModel
+from services.firestore_service import update_job_data, update_job_status
 from services.logging_service import get_logger
 
 logger = get_logger(__name__)
@@ -68,15 +69,44 @@ async def after_agent_callback(
     メインシーケンスの各エージェントが終了した後にADKランナーによって呼び出される。
 
     この関数は、エージェントの終了をログに記録し、エラーチェックを実行する。
+    - ExplainerAgentの場合、結果をjobsコレクションに書き込む。
     - ParallelAgentの場合、サブエージェントからの集約されたエラーをチェックする。
     - いずれかのエージェントが失敗した場合、stateに'workflow_failed'フラグを設定する。
-      これは、ResultWriterAgentが最終的なジョブステータスを決定するために使用します。
     """
     agent_name = getattr(callback_context, "agent_name", "unknown")
     state_obj = getattr(callback_context, "state", None)
     state = state_obj.to_dict() if state_obj else {}
     job_id = state.get("job_id", "unknown")
     logger.info(f"[{job_id}] エージェントを終了します: {agent_name}")
+
+    # ExplainerAgentが完了したら、その結果をjobsコレクションに書き込む
+    if agent_name == "ExplainerAgent":
+        explanation_data = state.get("explanation_data")
+        if explanation_data and job_id:
+            try:
+                # Pydanticモデルを辞書に変換
+                if isinstance(explanation_data, BaseModel):
+                    explanation_data_dict = explanation_data.model_dump(
+                        by_alias=True, exclude_none=True
+                    )
+                else:
+                    explanation_data_dict = explanation_data
+
+                # フロントエンドのJobモデルのキー（キャメルケース）に合わせてデータを整形
+                update_data = {
+                    "childExplanation": explanation_data_dict.get("child_explanation"),
+                }
+
+                logger.info(f"[{job_id}] jobsコレクションに解説データを書き込みます...")
+                db_client = get_firestore_client()
+                await update_job_data(
+                    db=db_client, job_id=job_id, data=update_data
+                )
+                logger.info(f"[{job_id}] jobsコレクションへの解説データ書き込みが完了しました。")
+            except Exception as e:
+                logger.warning(
+                    f"[{job_id}] Firestoreへの解説データ書き込みに失敗しました: {e}"
+                )
 
     # ADKのParallelAgentは、サブエージェントからの例外を自動的にキャッチし、
     # セッションステートの'parallel_errors'キーに保存します。

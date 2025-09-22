@@ -1,3 +1,4 @@
+from dependencies import get_firestore_client
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
@@ -5,6 +6,7 @@ from google.cloud.speech_v2 import SpeechClient
 from google.cloud.speech_v2.types import cloud_speech
 from google.genai.types import Content, Part
 from models.agent_models import TranscriptionResult
+from services.firestore_service import update_job_data
 from services.logging_service import get_logger
 
 from config import get_settings
@@ -71,16 +73,12 @@ class TranscriberAgent(BaseAgent):
             context.session.state["transcribed_text"] = transcript
             context.session.state["transcription"] = result
 
-            # update_sessionを直接呼び出し、状態の永続化を待つ
+            # セッションとジョブの状態を更新
             try:
-                self._logger.info(
-                    f"[{job_id}] 文字起こし結果をセッションに永続化します..."
-                )
+                # 1. adk_sessions ドキュメントを更新
+                self._logger.info(f"[{job_id}] 文字起こし結果をセッションに永続化します...")
                 session_service = context.session_service
-
-                # update_sessionの存在を動的にチェックし、型安全性を確保する
                 if hasattr(session_service, "update_session"):
-                    # getattrで動的にメソッドを取得して呼び出す
                     update_session_func = getattr(session_service, "update_session")
                     updated_session = await update_session_func(
                         session_id=context.session.id,
@@ -96,16 +94,25 @@ class TranscriberAgent(BaseAgent):
                             "セッションの更新に失敗しました (update_session returned None)"
                         )
                 else:
-                    # InMemorySessionServiceなど、update_sessionを持たない場合にフォールバック
                     self._logger.warning(
                         "session_service does not have update_session method. "
                         "State will be persisted by the next event."
                     )
-
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
+
+                # 2. jobs ドキュメントを更新してUIに中間結果を通知
+                self._logger.info(f"[{job_id}] jobsコレクションに中間結果を書き込みます...")
+                db_client = get_firestore_client()
+                await update_job_data(
+                    db=db_client,
+                    job_id=job_id,
+                    data={"transcribedText": transcript}, # フロントのモデルに合わせてキャメルケースに
+                )
+                self._logger.info(f"[{job_id}] jobsコレクションの中間結果書き込みが完了しました。")
+
             except Exception as e:
                 self._logger.error(
-                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
+                    f"[{job_id}] 状態の永続化中にエラーが発生しました: {e}",
                     exc_info=True,
                 )
                 raise
