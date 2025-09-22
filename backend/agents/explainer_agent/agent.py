@@ -15,7 +15,7 @@ class ExplainerAgent(LlmAgent):
     `ExplanationOutput`スキーマで定義された構造化JSONオブジェクトを出力する。
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         super().__init__(
             name="ExplainerAgent",
             description="子供向けの解説、イラストプロンプト、親向けのヒントを生成します。",
@@ -24,6 +24,5 @@ class ExplainerAgent(LlmAgent):
             instruction=SYSTEM_INSTRUCTION_PROMPT,
             output_key="explanation_data",  # セッションに保存する際のキー
             output_schema=ExplanationOutput,  # 出力の型定義
-            **kwargs,
         )
         self._logger = get_logger(__name__)

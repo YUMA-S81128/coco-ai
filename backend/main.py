@@ -7,11 +7,7 @@ from agents.illustrator_agent.agent import IllustratorAgent
 from agents.narrator_agent.agent import NarratorAgent
 from agents.result_writer_agent.agent import ResultWriterAgent
 from agents.transcriber_agent.agent import TranscriberAgent
-from callback import (
-    after_agent_callback,
-    before_agent_callback,
-    write_explanation_to_firestore_callback,
-)
+from callback import after_agent_callback, before_agent_callback
 
 # FastAPI & CloudEvents
 from cloudevents.http import from_http
@@ -141,9 +137,7 @@ def build_root_agent(db_client: firestore.AsyncClient) -> SequentialAgent:
     最終的な失敗チェックは `ResultWriterAgent` で行われる。
     """
     transcriber = TranscriberAgent()
-    explainer = ExplainerAgent(
-        after_agent_callback=write_explanation_to_firestore_callback
-    )
+    explainer = ExplainerAgent()
     illustrator = IllustratorAgent()
     narrator = NarratorAgent()
     result_writer = ResultWriterAgent(db_client=db_client)
