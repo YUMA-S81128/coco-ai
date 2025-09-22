@@ -23,9 +23,12 @@ class HomeScreen extends ConsumerWidget {
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            duration: const Duration(seconds: 10),
+          ),
+        );
       }
     });
 
@@ -63,6 +66,43 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: const _HomeContent(), // メインコンテンツをステートフルウィジェットに
+    );
+  }
+}
+
+/// 「おはなしのタネ」を表示するためのカードウィジェット
+class _OhanashiNoTaneCard extends StatelessWidget {
+  const _OhanashiNoTaneCard({required this.hint});
+
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 16.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ExpansionTile(
+        leading: const Icon(Icons.lightbulb_outline, color: Colors.amber),
+        title: const Text(
+          'おはなしのタネ',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              top: 8,
+            ),
+            child: Text(
+              hint,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -131,40 +171,41 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     final conversationContent = _buildConversationContent(appState);
 
     if (status == AppStatus.initial || status == AppStatus.recording) {
-      return LayoutBuilder(builder: (context, constraints) {
-        // 高さが450px未満の場合に横並びレイアウトを使用する
-        const double heightBreakpoint = 450;
-        final bool useHorizontalLayout = constraints.maxHeight < heightBreakpoint;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // 高さが450px未満の場合に横並びレイアウトを使用する
+          const double heightBreakpoint = 450;
+          final bool useHorizontalLayout =
+              constraints.maxHeight < heightBreakpoint;
 
-        if (useHorizontalLayout) {
-          // 横長の場合: コンテンツとマイクボタンを横並びに配置
-          return Row(
-            children: [
-              Expanded(
-                child: conversationContent,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _buildMicButton(appState, appNotifier),
-              ),
-            ],
-          );
-        } else {
-          // 縦長の場合: コンテンツの上にマイクボタンを重ねて配置 (元のレイアウト)
-          return Stack(
-            children: [
-              conversationContent,
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 40.0),
+          if (useHorizontalLayout) {
+            // 横長の場合: コンテンツとマイクボタンを横並びに配置
+            return Row(
+              children: [
+                Expanded(child: conversationContent),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: _buildMicButton(appState, appNotifier),
                 ),
-              ),
-            ],
-          );
-        }
-      });
+              ],
+            );
+          } else {
+            // 縦長の場合: コンテンツの上にマイクボタンを重ねて配置 (元のレイアウト)
+            return Stack(
+              children: [
+                conversationContent,
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 40.0),
+                    child: _buildMicButton(appState, appNotifier),
+                  ),
+                ),
+              ],
+            );
+          }
+        },
+      );
     } else {
       // それ以外の状態では、コンテンツをそのまま表示
       return conversationContent;
@@ -181,6 +222,19 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
     if (status == AppStatus.processing && appState.job == null) {
       return _buildProcessingUI();
+    }
+
+    if (status == AppStatus.error) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            '予期せぬエラーが発生しました。右上のリフレッシュボタンを押して再度試してください。',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.black54),
+          ),
+        ),
+      );
     }
 
     return _buildResultUI(appState);
@@ -204,17 +258,41 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Image.asset(AppAssets.coco, width: 80),
+              Column(
+                children: [
+                  const Text(
+                    'ココ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Image.asset(AppAssets.coco, width: 80),
+                ],
+              ),
               const SizedBox(width: 40),
-              Image.asset(AppAssets.ai, width: 80),
+              Column(
+                children: [
+                  const Text(
+                    'アイ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Image.asset(AppAssets.ai, width: 80),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          _buildTextWidget(
-            'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-            useNewline: true,
-          ),
+          _buildTextWidget('マイクのボタンをおして\n「なんで？」ってきいてみてね！', useNewline: true),
         ],
       ),
     );
@@ -240,7 +318,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     if (job == null) return const SizedBox.shrink();
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
         if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
           _buildChatBubble(
@@ -263,6 +341,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                 ),
             ],
           ),
+        if (job.parentHint != null && job.parentHint!.isNotEmpty)
+          _OhanashiNoTaneCard(hint: job.parentHint!),
         if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
           _buildImage(job.imageGcsPath!),
         if (appState.status == AppStatus.processing)
@@ -302,8 +382,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     required Character character,
   }) {
     final isCoco = character == Character.coco;
-    final crossAxisAlignment =
-        isCoco ? CrossAxisAlignment.start : CrossAxisAlignment.end;
+    final crossAxisAlignment = isCoco
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.end;
     final avatar = Image.asset(
       isCoco ? AppAssets.coco : AppAssets.ai,
       width: 50,
@@ -314,8 +395,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment:
-            isCoco ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment: isCoco
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.end,
         children: [
           if (isCoco) ...[avatar, const SizedBox(width: 12)],
           Flexible(
@@ -346,17 +428,18 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   /// 生成された画像ウィジェットをビルドする
   Widget _buildImage(String imageGcsPath) {
-    return FutureBuilder<String>(
-      future:
-          ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageGcsPath),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+    // GCSパスから画像URLを取得するプロバイダーを監視
+    final imageUrlAsyncValue = ref.watch(imageUrlProvider(imageGcsPath));
+
+    // プロバイダーの状態に応じてUIを構築
+    return imageUrlAsyncValue.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => const SizedBox.shrink(), // エラー時は何も表示しない
+      data: (downloadUrl) {
+        if (downloadUrl.isEmpty) {
+          return const SizedBox.shrink(); // URLが空の場合も何も表示しない
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink(); // エラー時は何も表示しない
-        }
-        final downloadUrl = snapshot.data!;
+        // 取得したURLを使用して画像を表示
         return Center(
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 16),
