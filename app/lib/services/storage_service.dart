@@ -9,6 +9,17 @@ final storageServiceProvider = Provider(
   (ref) => StorageService(ref.watch(firebaseStorageProvider)),
 );
 
+/// GCSパスからダウンロードURLを取得し、結果をキャッシュするプロバイダー
+final imageUrlProvider = FutureProvider.family<String, String>((ref, gsPath) {
+  // gsPathが空の場合は、何もせずに空文字を返す
+  if (gsPath.isEmpty) {
+    return Future.value('');
+  }
+  // storageServiceプロバイダーを読み込み、URL取得メソッドを呼び出す
+  final storageService = ref.watch(storageServiceProvider);
+  return storageService.getDownloadUrlFromGsPath(gsPath);
+});
+
 /// Firebase Cloud Storageとやり取りするためのサービスクラス
 class StorageService {
   final FirebaseStorage _storage;
