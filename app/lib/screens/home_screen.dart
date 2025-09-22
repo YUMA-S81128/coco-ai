@@ -23,9 +23,12 @@ class HomeScreen extends ConsumerWidget {
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            duration: const Duration(seconds: 15),
+          ),
+        );
       }
     });
 
