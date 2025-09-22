@@ -79,7 +79,7 @@ class _OhanashiNoTaneCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+      margin: const EdgeInsets.symmetric(vertical: 16.0),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ExpansionTile(
