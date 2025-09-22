@@ -26,22 +26,12 @@ class ResultWriterAgent(BaseAgent):
         self._db_client = db_client
 
     async def _run_async_impl(self, context: InvocationContext):
-        self._logger.info(f"debug: context: {context}")
-        self._logger.info(f"debug: context.session: {context.session}")
-
-        session_service = context.session_service
-        session = await session_service.get_session(
-            app_name=context.session.app_name,
-            user_id=context.session.user_id,
-            session_id=context.session.id,
-        )
-        state = session.state if session else {}
+        state = context.session.state if context.session else {}
         job_id = state.get("job_id")
         if not job_id:
-            raise ValueError("セッション状態にjob_idが見つかりません。")
+            raise ValueError("セッションにjob_idが見つかりません。")
 
         try:
-            # セッション状態から必要な結果を取得して検証
             transcribed_text = state["transcribed_text"]
             explanation_data = state["explanation_data"]
             illustration = IllustrationResult.model_validate(state["illustration"])
