@@ -55,11 +55,9 @@ async def after_explainer_agent_callback(
     """
     ExplainerAgentの実行後に呼び出され、生成された解説データをFirestoreに書き込む。
     """
-    state_obj = getattr(callback_context, "state", None)
-    # stateオブジェクトを辞書に変換する。
-    state = state_obj.to_dict() if state_obj else {}
+    state = callback_context.state.to_dict()
 
-    job_id = state.get("job_id", "unknown")
+    job_id = state.get("job_id")
     if not job_id:
         logger.warning(
             "job_idがstateに見つからないため、コールバックをスキップします。"
