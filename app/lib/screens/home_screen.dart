@@ -70,6 +70,42 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
+/// 「おはなしのタネ」を表示するためのカードウィジェット
+class _OhanashiNoTaneCard extends StatelessWidget {
+  const _OhanashiNoTaneCard({required this.hint});
+
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ExpansionTile(
+        leading: const Icon(Icons.lightbulb_outline, color: Colors.amber),
+        title: const Text(
+          'おはなしのタネ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        children: [
+          Padding(
+            padding:
+                const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
+            child: Text(
+              hint,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// メインコンテンツとインタラクションを管理するステートフルウィジェット
 class _HomeContent extends ConsumerStatefulWidget {
   const _HomeContent();
@@ -291,6 +327,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                 ),
             ],
           ),
+        if (job.parentHint != null && job.parentHint!.isNotEmpty)
+          _OhanashiNoTaneCard(hint: job.parentHint!),
         if (job.imageGcsPath != null && job.imageGcsPath!.isNotEmpty)
           _buildImage(job.imageGcsPath!),
         if (appState.status == AppStatus.processing)
