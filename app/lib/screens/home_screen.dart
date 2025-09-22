@@ -23,9 +23,12 @@ class HomeScreen extends ConsumerWidget {
     // エラー時にSnackBarを表示
     ref.listen(appStateProvider, (previous, next) {
       if (next.status == AppStatus.error && next.errorMessage != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            duration: const Duration(seconds: 15),
+          ),
+        );
       }
     });
 
@@ -131,40 +134,41 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     final conversationContent = _buildConversationContent(appState);
 
     if (status == AppStatus.initial || status == AppStatus.recording) {
-      return LayoutBuilder(builder: (context, constraints) {
-        // 高さが450px未満の場合に横並びレイアウトを使用する
-        const double heightBreakpoint = 450;
-        final bool useHorizontalLayout = constraints.maxHeight < heightBreakpoint;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // 高さが450px未満の場合に横並びレイアウトを使用する
+          const double heightBreakpoint = 450;
+          final bool useHorizontalLayout =
+              constraints.maxHeight < heightBreakpoint;
 
-        if (useHorizontalLayout) {
-          // 横長の場合: コンテンツとマイクボタンを横並びに配置
-          return Row(
-            children: [
-              Expanded(
-                child: conversationContent,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _buildMicButton(appState, appNotifier),
-              ),
-            ],
-          );
-        } else {
-          // 縦長の場合: コンテンツの上にマイクボタンを重ねて配置 (元のレイアウト)
-          return Stack(
-            children: [
-              conversationContent,
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 40.0),
+          if (useHorizontalLayout) {
+            // 横長の場合: コンテンツとマイクボタンを横並びに配置
+            return Row(
+              children: [
+                Expanded(child: conversationContent),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: _buildMicButton(appState, appNotifier),
                 ),
-              ),
-            ],
-          );
-        }
-      });
+              ],
+            );
+          } else {
+            // 縦長の場合: コンテンツの上にマイクボタンを重ねて配置 (元のレイアウト)
+            return Stack(
+              children: [
+                conversationContent,
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 40.0),
+                    child: _buildMicButton(appState, appNotifier),
+                  ),
+                ),
+              ],
+            );
+          }
+        },
+      );
     } else {
       // それ以外の状態では、コンテンツをそのまま表示
       return conversationContent;
@@ -204,17 +208,41 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Image.asset(AppAssets.coco, width: 80),
+              Column(
+                children: [
+                  const Text(
+                    'ココ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Image.asset(AppAssets.coco, width: 80),
+                ],
+              ),
               const SizedBox(width: 40),
-              Image.asset(AppAssets.ai, width: 80),
+              Column(
+                children: [
+                  const Text(
+                    'アイ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Image.asset(AppAssets.ai, width: 80),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          _buildTextWidget(
-            'マイクのボタンをおして\n「なんで？」ってきいてみてね！',
-            useNewline: true,
-          ),
+          _buildTextWidget('マイクのボタンをおして\n「なんで？」ってきいてみてね！', useNewline: true),
         ],
       ),
     );
@@ -302,8 +330,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     required Character character,
   }) {
     final isCoco = character == Character.coco;
-    final crossAxisAlignment =
-        isCoco ? CrossAxisAlignment.start : CrossAxisAlignment.end;
+    final crossAxisAlignment = isCoco
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.end;
     final avatar = Image.asset(
       isCoco ? AppAssets.coco : AppAssets.ai,
       width: 50,
@@ -314,8 +343,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment:
-            isCoco ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment: isCoco
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.end,
         children: [
           if (isCoco) ...[avatar, const SizedBox(width: 12)],
           Flexible(
@@ -347,8 +377,9 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   /// 生成された画像ウィジェットをビルドする
   Widget _buildImage(String imageGcsPath) {
     return FutureBuilder<String>(
-      future:
-          ref.read(storageServiceProvider).getDownloadUrlFromGsPath(imageGcsPath),
+      future: ref
+          .read(storageServiceProvider)
+          .getDownloadUrlFromGsPath(imageGcsPath),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
