@@ -76,7 +76,9 @@ class TranscriberAgent(BaseAgent):
             # セッションとジョブの状態を更新
             try:
                 # 1. adk_sessions ドキュメントを更新
-                self._logger.info(f"[{job_id}] 文字起こし結果をセッションに永続化します...")
+                self._logger.info(
+                    f"[{job_id}] 文字起こし結果をセッションに永続化します..."
+                )
                 session_service = context.session_service
                 if hasattr(session_service, "update_session"):
                     update_session_func = getattr(session_service, "update_session")
@@ -101,14 +103,20 @@ class TranscriberAgent(BaseAgent):
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
 
                 # 2. jobs ドキュメントを更新してUIに中間結果を通知
-                self._logger.info(f"[{job_id}] jobsコレクションに中間結果を書き込みます...")
+                self._logger.info(
+                    f"[{job_id}] jobsコレクションに中間結果を書き込みます..."
+                )
                 db_client = get_firestore_client()
                 await update_job_data(
                     db=db_client,
                     job_id=job_id,
-                    data={"transcribedText": transcript}, # フロントのモデルに合わせてキャメルケースに
+                    data={
+                        "transcribedText": transcript
+                    },  # フロントのモデルに合わせてキャメルケースに
                 )
-                self._logger.info(f"[{job_id}] jobsコレクションの中間結果書き込みが完了しました。")
+                self._logger.info(
+                    f"[{job_id}] jobsコレクションの中間結果書き込みが完了しました。"
+                )
 
             except Exception as e:
                 self._logger.error(

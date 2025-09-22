@@ -67,7 +67,7 @@ async def after_explainer_agent_callback(
     explanation_data = state.get("explanation_data")
     if not explanation_data:
         logger.warning(
-            f"[{job_id}] stateにexplanation_dataが見つからないため、コールバックをスキップします。"
+            f"[{job_id}] stateにexplanation_dataが見つからないため、コールバックをスキップします。{state}"
         )
         return
 
