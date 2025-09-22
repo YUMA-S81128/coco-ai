@@ -1,4 +1,4 @@
-from dependencies import get_firestore_client
+from callback import after_transcriber_agent_callback
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
@@ -6,7 +6,6 @@ from google.cloud.speech_v2 import SpeechClient
 from google.cloud.speech_v2.types import cloud_speech
 from google.genai.types import Content, Part
 from models.agent_models import TranscriptionResult
-from services.firestore_service import update_job_data
 from services.logging_service import get_logger
 
 from config import get_settings
@@ -20,7 +19,10 @@ class TranscriberAgent(BaseAgent):
     """
 
     def __init__(self):
-        super().__init__(name="TranscriberAgent")
+        super().__init__(
+            name="TranscriberAgent",
+            after_agent_callback=after_transcriber_agent_callback,
+        )
         self._settings = get_settings()
         self._speech_client = SpeechClient()
         self._logger = get_logger(__name__)
@@ -73,9 +75,8 @@ class TranscriberAgent(BaseAgent):
             context.session.state["transcribed_text"] = transcript
             context.session.state["transcription"] = result
 
-            # セッションとジョブの状態を更新
+            # セッションの状態を更新
             try:
-                # 1. adk_sessions ドキュメントを更新
                 self._logger.info(
                     f"[{job_id}] 文字起こし結果をセッションに永続化します..."
                 )
@@ -102,25 +103,9 @@ class TranscriberAgent(BaseAgent):
                     )
                 self._logger.info(f"[{job_id}] セッションの永続化が完了しました。")
 
-                # 2. jobs ドキュメントを更新してUIに中間結果を通知
-                self._logger.info(
-                    f"[{job_id}] jobsコレクションに中間結果を書き込みます..."
-                )
-                db_client = get_firestore_client()
-                await update_job_data(
-                    db=db_client,
-                    job_id=job_id,
-                    data={
-                        "transcribedText": transcript
-                    },  # フロントのモデルに合わせてキャメルケースに
-                )
-                self._logger.info(
-                    f"[{job_id}] jobsコレクションの中間結果書き込みが完了しました。"
-                )
-
             except Exception as e:
                 self._logger.error(
-                    f"[{job_id}] 状態の永続化中にエラーが発生しました: {e}",
+                    f"[{job_id}] セッションの永続化中にエラーが発生しました: {e}",
                     exc_info=True,
                 )
                 raise

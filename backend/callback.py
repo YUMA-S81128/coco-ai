@@ -52,6 +52,50 @@ async def after_agent_callback(
 
 
 # --------------------------------------
+# TranscriberAgent実行後のコールバック
+# --------------------------------------
+async def after_transcriber_agent_callback(
+    callback_context: CallbackContext,
+) -> None:
+    """
+    TranscriberAgentの実行後に呼び出され、音声の文字起こしデータをFirestoreに書き込む。
+    """
+    state = callback_context.state.to_dict()
+
+    logger.info(f"[callback] state: {state}")
+
+    job_id = state.get("job_id")
+    if not job_id:
+        logger.warning(
+            "job_idがstateに見つからないため、エージェントコールバックをスキップします。"
+        )
+        return
+
+    transcribed_text = state.get("transcribed_text")
+    if not transcribed_text:
+        logger.warning(
+            f"[{job_id}] stateにtranscribed_textが見つからないため、エージェントコールバックをスキップします。"
+        )
+        return
+
+    try:
+        logger.info(
+            f"[{job_id}] jobsコレクションに音声の文字起こしデータを書き込みます..."
+        )
+        db_client = get_firestore_client()
+        await update_job_data(
+            db=db_client, job_id=job_id, data={"transcribedText": transcribed_text}
+        )
+        logger.info(
+            f"[{job_id}] jobsコレクションへの音声の文字起こしデータ書き込みが完了しました。"
+        )
+    except Exception as e:
+        logger.warning(
+            f"[{job_id}] Firestoreへの音声の文字起こしデータ書き込みに失敗しました: {e}"
+        )
+
+
+# --------------------------------------
 # ExplainerAgent実行後のコールバック
 # --------------------------------------
 async def parse_and_store_llm_response_as_explanation(
