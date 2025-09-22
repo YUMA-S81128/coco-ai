@@ -5,7 +5,6 @@ from google.adk.events import Event
 from google.cloud.speech_v2 import SpeechClient
 from google.cloud.speech_v2.types import cloud_speech
 from google.genai.types import Content, Part
-from models.agent_models import TranscriptionResult
 from services.logging_service import get_logger
 
 from config import get_settings
@@ -67,13 +66,8 @@ class TranscriberAgent(BaseAgent):
 
             self._logger.info(f"[{job_id}] 書き起こしテキスト: {transcript}")
 
-            result = TranscriptionResult(
-                job_id=job_id, gcs_uri=gcs_uri, text=transcript
-            )
-
             # メモリ上のセッション状態をまず更新
             context.session.state["transcribed_text"] = transcript
-            context.session.state["transcription"] = result
 
             # セッションの状態を更新
             try:
@@ -87,7 +81,6 @@ class TranscriberAgent(BaseAgent):
                         session_id=context.session.id,
                         state_delta={
                             "transcribed_text": transcript,
-                            "transcription": result,
                         },
                         app_name=context.session.app_name,
                         user_id=context.session.user_id,

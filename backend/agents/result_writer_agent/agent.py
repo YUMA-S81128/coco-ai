@@ -10,7 +10,6 @@ from models.agent_models import (
     FinalJobData,
     IllustrationResult,
     NarrationResult,
-    TranscriptionResult,
 )
 from services.firestore_service import update_job_status
 from services.logging_service import get_logger
@@ -62,20 +61,20 @@ class ResultWriterAgent(BaseAgent):
 
         try:
             # セッション状態から必要な結果を取得して検証
-            transcription = TranscriptionResult.model_validate(state["transcription"])
+            transcribed_text = state["transcribed_text"]
             explanation_data = state["explanation_data"]
             illustration = IllustrationResult.model_validate(state["illustration"])
             narration = NarrationResult.model_validate(state["narration"])
 
             explanation = ExplanationResult(
                 job_id=job_id,
-                original_text=transcription.text,
+                original_text=transcribed_text,
                 **explanation_data,
             )
 
             # 最終的なデータモデルを構築
             final_data_model = FinalJobData(
-                transcribedText=transcription.text,
+                transcribedText=transcribed_text,
                 childExplanation=explanation.child_explanation,
                 parentHint=explanation.parent_hint,
                 illustrationPrompt=explanation.illustration_prompt,

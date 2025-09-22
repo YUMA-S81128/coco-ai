@@ -1,14 +1,6 @@
 from pydantic import BaseModel, Field
 
 
-class TranscriptionResult(BaseModel):
-    """音声文字起こしプロセスの結果"""
-
-    job_id: str
-    gcs_uri: str
-    text: str = Field(description="音声から書き起こされたテキスト")
-
-
 class ExplanationOutput(BaseModel):
     """
     ExplainerAgent内のLLMによって生成される構造化データ。

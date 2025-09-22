@@ -62,8 +62,6 @@ async def after_transcriber_agent_callback(
     """
     state = callback_context.state.to_dict()
 
-    logger.info(f"[callback] state: {state}")
-
     job_id = state.get("job_id")
     if not job_id:
         logger.warning(
