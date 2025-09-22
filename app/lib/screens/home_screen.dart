@@ -26,7 +26,7 @@ class HomeScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.errorMessage!),
-            duration: const Duration(seconds: 15),
+            duration: const Duration(seconds: 10),
           ),
         );
       }

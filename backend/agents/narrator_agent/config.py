@@ -3,7 +3,7 @@ from google.cloud import texttospeech
 # 音声合成に使用する声の設定
 VOICE_SELECTION_PARAMS = texttospeech.VoiceSelectionParams(
     language_code="ja-JP",  # 言語コード (日本語)
-    name="ja-JP-Wavenet-A",  # 音声モデル名
+    name="ja-JP-Chirp3-HD-Leda",  # 音声モデル名
 )
 
 # 出力する音声ファイルの設定
