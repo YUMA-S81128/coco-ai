@@ -318,7 +318,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
     if (job == null) return const SizedBox.shrink();
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
         if (job.transcribedText != null && job.transcribedText!.isNotEmpty)
           _buildChatBubble(
