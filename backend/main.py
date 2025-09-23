@@ -167,7 +167,7 @@ def build_root_agent(db_client: firestore.AsyncClient) -> SequentialAgent:
 
     # 全体の処理を定義するシーケンシャルなエージェント
     root = SequentialAgent(
-        name="CocoAIPipeline",
+        name="CocoAiPipeline",
         sub_agents=[transcriber, explainer, parallel_branch, result_writer],
         before_agent_callback=before_agent_callback,
         after_agent_callback=after_agent_callback,

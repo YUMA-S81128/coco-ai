@@ -5,6 +5,7 @@ import 'package:app/services/storage_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// アプリケーションのメイン画面
 class HomeScreen extends ConsumerWidget {
@@ -35,6 +36,13 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.lightBlue[50],
       appBar: AppBar(
+        title: Text(
+          'Coco-Ai',
+          style: GoogleFonts.roboto(
+            color: Colors.black54,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
