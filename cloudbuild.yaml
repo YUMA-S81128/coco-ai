@@ -86,11 +86,11 @@ steps:
             --service-account=${_FUNCTION_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
             --project=${PROJECT_ID} \
             --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},FUNCTION_SA_EMAIL=${_FUNCTION_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-          
-          echo ">>> Ensuring service-level min instances = 1"
+
+          echo ">>> Allowing service to scale to zero (min instances = 0)"
           gcloud run services update ${_FUNCTION_SERVICE_NAME} \
             --region ${_GOOGLE_CLOUD_LOCATION} \
-            --min 1 \
+            --min 0 \
             --project=${PROJECT_ID}
         else
           echo ">>> Skipping Cloud Functions deployment for target: ${_DEPLOY_TARGET}"
@@ -130,10 +130,10 @@ steps:
             --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_GOOGLE_CLOUD_LOCATION},AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},PROCESSED_AUDIO_BUCKET=${_PROCESSED_AUDIO_BUCKET},GENERATED_IMAGE_BUCKET=${_GENERATED_IMAGE_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},SESSION_SERVICE=${_SESSION_SERVICE},GOOGLE_GENAI_USE_VERTEXAI=true" \
             --project=${PROJECT_ID}
 
-          echo ">>> Ensuring service-level min instances = 1"
+          echo ">>> Allowing service to scale to zero (min instances = 0)"
           gcloud run services update ${_BACKEND_SERVICE_NAME} \
             --region ${_GOOGLE_CLOUD_LOCATION} \
-            --min 1 \
+            --min 0 \
             --project=${PROJECT_ID}
         fi
 
