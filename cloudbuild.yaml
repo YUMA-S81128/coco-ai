@@ -85,14 +85,8 @@ steps:
             --allow-unauthenticated \
             --service-account=${_FUNCTION_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
             --project=${PROJECT_ID} \
+            --min-instances=0 \
             --set-env-vars="AUDIO_UPLOAD_BUCKET=${_AUDIO_UPLOAD_BUCKET},FIRESTORE_COLLECTION=${_FIRESTORE_COLLECTION},FUNCTION_SA_EMAIL=${_FUNCTION_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-          echo ">>> Allowing service to scale to zero (min instances = 0)"
-          gcloud run services update ${_FUNCTION_SERVICE_NAME} \
-            --region ${_GOOGLE_CLOUD_LOCATION} \
-            --cpu-throttling \
-            --min 0 \
-            --project=${PROJECT_ID}
         else
           echo ">>> Skipping Cloud Functions deployment for target: ${_DEPLOY_TARGET}"
         fi
