@@ -90,6 +90,7 @@ steps:
           echo ">>> Allowing service to scale to zero (min instances = 0)"
           gcloud run services update ${_FUNCTION_SERVICE_NAME} \
             --region ${_GOOGLE_CLOUD_LOCATION} \
+            --cpu-throttling \
             --min 0 \
             --project=${PROJECT_ID}
         else
